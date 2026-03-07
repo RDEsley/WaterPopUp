@@ -1,72 +1,70 @@
+<div align="center">
+
+<img src="https://cdn-icons-png.flaticon.com/512/3105/3105807.png" width="100" alt="Water Icon"/>
+
 # 💧 Water-Popup
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](#contribuindo)
+**Um utilitário leve e eficiente em Python para cuidar da sua saúde enquanto você trabalha.**
 
-Um utilitário leve e eficiente em Python projetado para cuidar da sua saúde enquanto você trabalha. O **Hydrate-Popup** exibe lembretes visuais e sonoros periódicos, garantindo que você nunca esqueça de se hidratar.
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/Status-Finalizado-25D366?style=for-the-badge)]()
+
+</div>
+
+---
+
+## 📌 Sobre o Projeto
+
+O **Water-Popup** (ou Hydrate-Popup) foi projetado para garantir que você nunca esqueça de se hidratar durante longas sessões de foco. Ele exibe lembretes visuais e sonoros periódicos de forma não intrusiva, unindo funcionalidade com baixo consumo de recursos.
+
+> 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows.
 
 ---
 
 ## ✨ Recursos
 
-* **Notificações Visuais:** Popups dinâmicos no canto superior direito com cores de fundo aleatórias.
-* **Feedback Sonoro:** Reprodução aleatória de arquivos de áudio (`.mp3`, `.wav`, `.ogg`) da pasta `audios/`.
-* **Leveza:** Execução em segundo plano com baixo consumo de recursos.
-* **Portabilidade:** Totalmente compatível com empacotamento `.exe` via PyInstaller para Windows.
+| Funcionalidade | Descrição |
+|---|---|
+| 🖼️ **Popups Dinâmicos** | Notificações visuais no canto da tela com cores aleatórias. |
+| 🔊 **Feedback Sonoro** | Reprodução aleatória de arquivos (`.mp3`, `.wav`, `.ogg`) da pasta `audios/`. |
+| 🪶 **Baixo Consumo** | Execução otimizada em segundo plano via *Threading*. |
+| 📦 **Portabilidade** | Pronto para ser convertido em executável via PyInstaller. |
+
+---
 
 ## 🛠️ Tecnologias Utilizadas
 
-* **Linguagem:** Python 3.8+
-* **Interface/Áudio:** Pygame (para manipulação de áudio e janelas).
-* **Automação:** Threading para execução em segundo plano.
+<div align="center">
+
+| Tecnologia | Papel no Projeto |
+|---|---|
+| 🐍 **Python 3.8+** | Core do sistema e lógica de automação |
+| 🎮 **Pygame** | Manipulação de janelas e motor de áudio |
+| 🧵 **Threading** | Gerenciamento de processos em background |
+
+</div>
+
+---
 
 ## 🚀 Instalação e Configuração
 
-### Pré-requisitos
-* Python instalado (versão 3.8 ou superior).
-* Ambiente virtual (recomendado).
+### Passo a Passo
+```bash
+# 1. Clone o repositório
+git clone [https://github.com/RDEsley/hydrate-popup.git](https://github.com/RDEsley/hydrate-popup.git)
+cd hydrate-popup
 
-### Passo a passo
-1. **Clone o repositório:**
-   git clone https://github.com/RDEsley/hydrate-popup.git
-   cd hydrate-popup
+# 2. Configure e ative o ambiente virtual
+python -m venv .venv
+# Windows: .venv\Scripts\activate | Mac/Linux: source .venv/bin/activate
 
-2. **Configure o ambiente virtual:**
-   python -m venv .venv
-   
-   # Windows
-   .venv\Scripts\activate
-   
-   # macOS / Linux
-   source .venv/bin/activate
+# 3. Instale as dependências
+pip install -r requirements.txt
 
-3. **Instale as dependências:**
-   pip install -r requirements.txt
-
-4. **Prepare os áudios:**
-   Adicione seus arquivos de som favoritos na pasta `audios/` na raiz do projeto.
-
----
-
-## 💻 Como Usar
-
-Para iniciar o monitor de hidratação, execute:
-python hidratar_popup.py
-
-> **Dica de Infra:** Para criar um executável para Windows, você pode usar o comando:
-> pyinstaller --noconsole --onefile hidratar_popup.py
-
----
-
-## 🤝 Contribuindo
-
-Contribuições tornam a comunidade open source um lugar incrível!
-1. Faça um **Fork** do projeto.
-2. Crie uma **Branch** para sua feature (git checkout -b feature/NovaFeature).
-3. Dê um **Commit** em suas mudanças (git commit -m 'Add: Nova Feature').
-4. Faça um **Push** para a Branch (git push origin feature/NovaFeature).
-5. Abra um **Pull Request**.
+# 4. Prepare os áudios
+# Adicione seus arquivos de som na pasta audios/ na raiz do projeto.
+```
 
 ---
 
@@ -76,8 +74,26 @@ Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) par
 
 ---
 
-## 👨‍💻 Contato
+## 👨‍💻 Desenvolvedor
 
-**Richard Esley** - *Full Stack Developer*
-* **GitHub:** [RDEsley](https://github.com/RDEsley)
-* **Portfólio:** [certificates-richard-oliveira.vercel.app](https://certificates-richard-oliveira.vercel.app)
+<div align="center">
+
+<img src="https://github.com/RDEsley.png" width="100" style="border-radius:50%" alt="Richard Esley"/>
+
+💻 **Richard Esley**
+
+*Desenvolvedor Full Stack | UI/UX*
+
+[![Portfólio](https://img.shields.io/badge/Portfólio-25D366?style=for-the-badge&logo=vercel&logoColor=white)](https://richardesley-dev.vercel.app/)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/RDEsley)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/richardesley/)
+
+</div>
+
+---
+
+<div align="center">
+
+*⭐ Beba água e deixe uma estrela no repositório! ⭐*
+
+</div>
