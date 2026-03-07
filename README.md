@@ -1,9 +1,4 @@
-One-liner:
-Hydrate-Popup — Pequeno utilitário Python que mostra um popup de lembrete para beber água e toca áudios aleatórios; facilmente empacotável com PyInstaller.
-
-README - Hydrate-Popup
-
-Hydrate-Popup
+# Hydrate-Popup
 
 Pequeno utilitário em Python que exibe um popup periódico com lembrete para beber água e reproduz um áudio aleatório da pasta `audios/`. Ideal como app leve para desktop (suporta empacotamento com PyInstaller).
 
