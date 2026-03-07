@@ -1,53 +1,99 @@
-One-liner:
-Hydrate-Popup — Pequeno utilitário Python que mostra um popup de lembrete para beber água e toca áudios aleatórios; facilmente empacotável com PyInstaller.
+<div align="center">
 
-README - Hydrate-Popup
+<img src="https://cdn-icons-png.flaticon.com/512/3105/3105807.png" width="100" alt="Water Icon"/>
 
-Hydrate-Popup
+# 💧 Water-Popup
 
-Pequeno utilitário em Python que exibe um popup periódico com lembrete para beber água e reproduz um áudio aleatório da pasta `audios/`. Ideal como app leve para desktop (suporta empacotamento com PyInstaller).
+**Um utilitário leve e eficiente em Python para cuidar da sua saúde enquanto você trabalha.**
 
-Recursos
-- Mostra um popup no canto superior direito com mensagem de lembrete.
-- Reproduz aleatoriamente arquivos de áudio da pasta `audios/` (`.mp3`, `.wav`, `.ogg`).
-- Popups com cor de fundo aleatória.
-- Fácil de empacotar em `.exe` (Windows) via PyInstaller.
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/Status-Finalizado-25D366?style=for-the-badge)]()
 
-Pré-requisitos
-- Python 3.8+
-- Recomendado criar um ambiente virtual (venv).
+</div>
 
-Instalação (desenvolvimento)
-1. Clone o repositório:
-   git clone https://github.com/RDEsley/hydrate-popup.git
-   cd hydrate-popup
+---
 
-2. Crie e ative um ambiente virtual (opcional mas recomendado):
-   python -m venv .venv
-   # Windows
-   .venv\Scripts\activate
-   # macOS / Linux
-   source .venv/bin/activate
+## 📌 Sobre o Projeto
 
-3. Instale dependências:
-   pip install -r requirements.txt
+O **Water-Popup** (ou Hydrate-Popup) foi projetado para garantir que você nunca esqueça de se hidratar durante longas sessões de foco. Ele exibe lembretes visuais e sonoros periódicos de forma não intrusiva, unindo funcionalidade com baixo consumo de recursos.
 
-   Exemplo do requirements.txt mínimo:
-   pygame
+> 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows.
 
-4. Coloque seus arquivos de áudio na pasta `audios/` (formatos suportados: `.mp3`, `.wav`, `.ogg`).
+---
 
-Execução
-Rode localmente com:
-   python hidratar_popup.py
+## ✨ Recursos
 
-O app roda em segundo plano; ele exibirá o popup periodicamente (conforme configurado no código).
+| Funcionalidade | Descrição |
+|---|---|
+| 🖼️ **Popups Dinâmicos** | Notificações visuais no canto da tela com cores aleatórias. |
+| 🔊 **Feedback Sonoro** | Reprodução aleatória de arquivos (`.mp3`, `.wav`, `.ogg`) da pasta `audios/`. |
+| 🪶 **Baixo Consumo** | Execução otimizada em segundo plano via *Threading*. |
+| 📦 **Portabilidade** | Pronto para ser convertido em executável via PyInstaller. |
 
-Contribuições
-Contribuições são bem-vindas. Abra uma issue para discutir mudanças e depois envie um pull request com commits pequenos e claros.
+---
 
-Licença
-Este projeto está licenciado sob a MIT License — veja o ficheiro LICENSE para detalhes.
+## 🛠️ Tecnologias Utilizadas
 
-Contato
-Desenvolvedor: Richard Esley — perfil: https://github.com/RDEsley
+<div align="center">
+
+| Tecnologia | Papel no Projeto |
+|---|---|
+| 🐍 **Python 3.8+** | Core do sistema e lógica de automação |
+| 🎮 **Pygame** | Manipulação de janelas e motor de áudio |
+| 🧵 **Threading** | Gerenciamento de processos em background |
+
+</div>
+
+---
+
+## 🚀 Instalação e Configuração
+
+### Passo a Passo
+```bash
+# 1. Clone o repositório
+git clone [https://github.com/RDEsley/hydrate-popup.git](https://github.com/RDEsley/hydrate-popup.git)
+cd hydrate-popup
+
+# 2. Configure e ative o ambiente virtual
+python -m venv .venv
+# Windows: .venv\Scripts\activate | Mac/Linux: source .venv/bin/activate
+
+# 3. Instale as dependências
+pip install -r requirements.txt
+
+# 4. Prepare os áudios
+# Adicione seus arquivos de som na pasta audios/ na raiz do projeto.
+```
+
+---
+
+## ⚖️ Licença
+
+Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
+
+## 👨‍💻 Desenvolvedor
+
+<div align="center">
+
+<img src="https://github.com/RDEsley.png" width="100" style="border-radius:50%" alt="Richard Esley"/>
+
+💻 **Richard Esley**
+
+*Desenvolvedor Full Stack | UI/UX*
+
+[![Portfólio](https://img.shields.io/badge/Portfólio-25D366?style=for-the-badge&logo=vercel&logoColor=white)](https://richardesley-dev.vercel.app/)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/RDEsley)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/richardesley/)
+
+</div>
+
+---
+
+<div align="center">
+
+*⭐ Beba água e deixe uma estrela no repositório! ⭐*
+
+</div>
