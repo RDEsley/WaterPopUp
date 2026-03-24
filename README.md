@@ -75,32 +75,32 @@ cd WaterPopUp
 pip install pygame
 
 # Execute o lembrete (popup a cada 10 min)
-python hidratar_popup.py
+python waterpopup.py
 
 # Abrir configurações
-python hidratar_popup.py --config
+python waterpopup.py --config
 ```
 
 ### Gerar executável (.exe)
 
 ```bash
 pip install pyinstaller
-pyinstaller hidratar_popup.spec
+pyinstaller waterpopup.spec
 ```
 
-O `.exe` será criado em `dist/hidratar_popup.exe`.
+O `.exe` será criado em `dist/waterpopup.exe`.
 
 ### Usar o .exe
 
 | Ação | Comando |
 |------|---------|
-| Iniciar lembretes | `hidratar_popup.exe` |
-| Abrir configurações | `hidratar_popup.exe --config` ou `hidratar_popup.exe -c` |
+| Iniciar lembretes | `waterpopup.exe` |
+| Abrir configurações | `waterpopup.exe --config` ou `waterpopup.exe -c` |
 
 ### Iniciar com o Windows
 
 1. Pressione `Win + R`, digite `shell:startup` e Enter.
-2. Crie um atalho do `hidratar_popup.exe` dentro dessa pasta.
+2. Crie um atalho do `waterpopup.exe` dentro dessa pasta.
 
 ---
 
@@ -113,7 +113,7 @@ Execute com `--config` para abrir a interface de personalização:
 - **Duração** — Segundos que o popup permanece na tela (3–60)
 - **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
 - **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
-- **Animação** — Deslizar, Fade ou Nenhuma
+- **Animação** — Aleatória, Deslizar, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
 - **Posição** — Canto da tela onde o popup aparece
 - **Fonte** — Tamanho do texto (10–24 px)
 - **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`
@@ -129,10 +129,11 @@ Execute com `--config` para abrir a interface de personalização:
 
 ```
 WaterPopUp/
-├── hidratar_popup.py      # Aplicação principal
-├── hidratar_popup.spec    # Configuração PyInstaller
-├── audios/                # Arquivos de áudio (.mp3, .wav, .ogg)
-├── config.json            # Configurações (gerado automaticamente)
+├── waterpopup.py              # Aplicação principal
+├── waterpopup.spec            # Configuração PyInstaller
+├── Configurar Water Popup.bat # Atalho para abrir configurações
+├── audios/                    # Arquivos de áudio (.mp3, .wav, .ogg)
+├── config.json                # Configurações (gerado automaticamente)
 └── README.md
 ```
 

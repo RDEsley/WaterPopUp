@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['hidratar_popup.py'],
+    ['waterpopup.py'],
     pathex=[],
     binaries=[],
     datas=[('audios', 'audios')],
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='hidratar_popup',
+    name='waterpopup',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
