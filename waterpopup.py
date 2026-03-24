@@ -71,7 +71,7 @@ PALETAS = {
 CONFIG_PADRAO = {
     "message": "Drink some water! 💧",
     "interval_minutes": 10,
-    "popup_duration_seconds": 12,
+    "popup_duration_seconds": 5,
     "stop_audio_on_close": True,
     "random_colors": True,
     "color_palette": "Pastel",
@@ -90,8 +90,9 @@ def carregar_config():
     global _config_cache, _config_mtime
     path = caminho_config()
     if not os.path.exists(path):
-        salvar_config(CONFIG_PADRAO)
-        return CONFIG_PADRAO.copy()
+        cfg_inicial = CONFIG_PADRAO.copy()
+        salvar_config(cfg_inicial)
+        return cfg_inicial
 
     try:
         mtime = os.path.getmtime(path)
@@ -109,10 +110,14 @@ def carregar_config():
         return CONFIG_PADRAO.copy()
 
 def salvar_config(cfg):
+    global _config_cache, _config_mtime
     path = caminho_config()
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
-    global _config_mtime
+    # Mantém cache e mtime sincronizados com o último save
+    _config_cache = {**CONFIG_PADRAO, **cfg}
+    if _config_cache.get("color_palette") in PALETAS:
+        _config_cache["colors"] = PALETAS[_config_cache["color_palette"]].copy()
     _config_mtime = os.path.getmtime(path)
 
 # ============ ÁUDIO ============
@@ -153,7 +158,7 @@ def parar_som():
 
 # ============ ANIMAÇÕES ============
 
-def _pos_inicial(cfg, w, h, popup_w=340, popup_h=130):
+def _pos_inicial(cfg, w, h, popup_w=300, popup_h=100):
     pos = cfg.get("popup_position", "top-right")
     margin = 15
     if pos == "top-right":
