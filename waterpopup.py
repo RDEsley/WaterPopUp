@@ -675,6 +675,33 @@ def abrir_configuracoes():
 
     root.mainloop()
 
+# ============ JANELA DE CONTROLE ============
+
+def janela_controle():
+    """Janela mínima que mantém o app rodando. Feche para encerrar."""
+    root = tk.Tk()
+    root.title("💧 Water Popup")
+    root.geometry("320x70")
+    root.resizable(False, False)
+    root.configure(bg="#1a1a2e")
+    root.attributes("-topmost", False)
+
+    tk.Label(
+        root, text="Water Popup ativo",
+        font=("Segoe UI", 11), fg="#eaeaea", bg="#1a1a2e"
+    ).pack(pady=(12, 4))
+    tk.Label(
+        root, text="Feche esta janela para encerrar os lembretes",
+        font=("Segoe UI", 9), fg="#888", bg="#1a1a2e"
+    ).pack(pady=(0, 8))
+
+    def ao_fechar():
+        root.destroy()
+        sys.exit(0)
+
+    root.protocol("WM_DELETE_WINDOW", ao_fechar)
+    root.mainloop()
+
 # ============ MAIN ============
 
 if __name__ == "__main__":
@@ -683,5 +710,4 @@ if __name__ == "__main__":
         sys.exit(0)
 
     Thread(target=loop_lembretes, daemon=True).start()
-    while True:
-        time.sleep(1)
+    janela_controle()
