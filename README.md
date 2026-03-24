@@ -16,9 +16,9 @@
 
 ## 📌 Sobre o Projeto
 
-O **Water-Popup** (ou Hydrate-Popup) foi projetado para garantir que você nunca esqueça de se hidratar durante longas sessões de foco. Ele exibe lembretes visuais e sonoros periódicos de forma não intrusiva, unindo funcionalidade com baixo consumo de recursos.
+O **Water-Popup** (ou Hidratar Popup) foi projetado para garantir que você nunca esqueça de se hidratar durante longas sessões de foco. Ele exibe lembretes visuais e sonoros periódicos de forma não intrusiva, com interface de personalização completa.
 
-> 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows.
+> 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows. Ideal para iniciar junto com o PC.
 
 ---
 
@@ -26,10 +26,16 @@ O **Water-Popup** (ou Hydrate-Popup) foi projetado para garantir que você nunca
 
 | Funcionalidade | Descrição |
 |---|---|
-| 🖼️ **Popups Dinâmicos** | Notificações visuais no canto da tela com cores aleatórias. |
-| 🔊 **Feedback Sonoro** | Reprodução aleatória de arquivos (`.mp3`, `.wav`, `.ogg`) da pasta `audios/`. |
+| 🖼️ **Popups Dinâmicos** | Notificações visuais com cores aleatórias ou paletas temáticas (Pastel, Vibrante, Natureza, Escuro, Clássico). |
+| 🎬 **Animações** | Entrada do popup com efeito deslizar ou fade in. |
+| 📍 **Posição Configurável** | Escolha o canto da tela: superior/inferior, esquerdo/direito. |
+| 🔊 **Feedback Sonoro** | Reprodução de arquivos (`.mp3`, `.wav`, `.ogg`) — aleatório ou seleção personalizada. |
+| ⏹️ **Áudio Inteligente** | Opção para parar o áudio quando o popup fechar (ideal para músicas longas). |
+| ✏️ **Mensagem Personalizada** | Defina sua própria mensagem de lembrete. |
+| ⏱️ **Temporização** | Intervalo entre lembretes (1–120 min) e duração do popup (3–60 seg). |
 | 🪶 **Baixo Consumo** | Execução otimizada em segundo plano via *Threading*. |
-| 📦 **Portabilidade** | Pronto para ser convertido em executável via PyInstaller. |
+| 📦 **Portabilidade** | Pronto para conversão em executável via PyInstaller. |
+| ⚙️ **Configuração Persistente** | Todas as preferências salvas em `config.json` na pasta do app. |
 
 ---
 
@@ -40,30 +46,94 @@ O **Water-Popup** (ou Hydrate-Popup) foi projetado para garantir que você nunca
 | Tecnologia | Papel no Projeto |
 |---|---|
 | 🐍 **Python 3.8+** | Core do sistema e lógica de automação |
-| 🎮 **Pygame** | Manipulação de janelas e motor de áudio |
+| 🎮 **Pygame** | Motor de áudio |
+| 🪟 **Tkinter** | Interface gráfica (popup e configurações) |
 | 🧵 **Threading** | Gerenciamento de processos em background |
 
 </div>
 
 ---
 
-## 🚀 Instalação e Configuração
+## 🚀 Instalação e Uso
 
-### Passo a Passo
+### Dependências
+
 ```bash
-# 1. Clone o repositório
-git clone [https://github.com/RDEsley/hydrate-popup.git](https://github.com/RDEsley/hydrate-popup.git)
-cd hydrate-popup
+pip install pygame
+```
 
-# 2. Configure e ative o ambiente virtual
-python -m venv .venv
-# Windows: .venv\Scripts\activate | Mac/Linux: source .venv/bin/activate
+> Tkinter já vem incluído no Python.
 
-# 3. Instale as dependências
-pip install -r requirements.txt
+### Executar com Python
 
-# 4. Prepare os áudios
-# Adicione seus arquivos de som na pasta audios/ na raiz do projeto.
+```bash
+# Clone o repositório
+git clone https://github.com/RDEsley/WaterPopUp.git
+cd WaterPopUp
+
+# Instale as dependências
+pip install pygame
+
+# Execute o lembrete (popup a cada 10 min)
+python hidratar_popup.py
+
+# Abrir configurações
+python hidratar_popup.py --config
+```
+
+### Gerar executável (.exe)
+
+```bash
+pip install pyinstaller
+pyinstaller hidratar_popup.spec
+```
+
+O `.exe` será criado em `dist/hidratar_popup.exe`.
+
+### Usar o .exe
+
+| Ação | Comando |
+|------|---------|
+| Iniciar lembretes | `hidratar_popup.exe` |
+| Abrir configurações | `hidratar_popup.exe --config` ou `hidratar_popup.exe -c` |
+
+### Iniciar com o Windows
+
+1. Pressione `Win + R`, digite `shell:startup` e Enter.
+2. Crie um atalho do `hidratar_popup.exe` dentro dessa pasta.
+
+---
+
+## ⚙️ Configurações
+
+Execute com `--config` para abrir a interface de personalização:
+
+- **Mensagem** — Texto exibido no popup
+- **Intervalo** — Minutos entre cada lembrete (1–120)
+- **Duração** — Segundos que o popup permanece na tela (3–60)
+- **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
+- **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
+- **Animação** — Deslizar, Fade ou Nenhuma
+- **Posição** — Canto da tela onde o popup aparece
+- **Fonte** — Tamanho do texto (10–24 px)
+- **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`
+
+### Pasta de áudios
+
+- **Com .exe:** Coloque a pasta `audios/` ao lado do executável para usar seus próprios arquivos.
+- **Com Python:** Use a pasta `audios/` na raiz do projeto.
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+WaterPopUp/
+├── hidratar_popup.py      # Aplicação principal
+├── hidratar_popup.spec    # Configuração PyInstaller
+├── audios/                # Arquivos de áudio (.mp3, .wav, .ogg)
+├── config.json            # Configurações (gerado automaticamente)
+└── README.md
 ```
 
 ---
