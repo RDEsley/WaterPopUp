@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Config (personalizado por usuário)
+config.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
