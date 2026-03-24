@@ -1,0 +1,26 @@
+{
+  "message": "Drink some water! 💧",
+  "interval_minutes": 10,
+  "popup_duration_seconds": 12,
+  "random_colors": true,
+  "colors": [
+    "light pink",
+    "light blue",
+    "light green",
+    "lavender",
+    "peach puff",
+    "light yellow",
+    "plum",
+    "khaki",
+    "#FFB6C1",
+    "#87CEEB",
+    "#98FB98",
+    "#E6E6FA",
+    "#FFDAB9",
+    "#FFFFE0",
+    "#DDA0DD",
+    "#F0E68C"
+  ],
+  "audio_mode": "random",
+  "selected_audios": []
+}
