@@ -540,6 +540,43 @@ CFG_SUB = "#5a6f8f"
 CFG_ACCENT = "#2563eb"
 CFG_ACCENT_HOVER = "#1d4ed8"
 CFG_BORDER = "#b8cce8"
+CFG_BTN_SEC_BG = "#ffffff"
+CFG_BTN_SEC_ACTIVE = "#d8e4f8"
+
+def _cfg_btn_sec(parent, **kw):
+    """Botão secundário com relevo (ttk+clam no Windows costuma ficar achatado)."""
+    opts = {
+        "font": ("Segoe UI", 10),
+        "bg": CFG_BTN_SEC_BG,
+        "fg": CFG_TEXTO,
+        "activebackground": CFG_BTN_SEC_ACTIVE,
+        "activeforeground": CFG_TEXTO,
+        "relief": tk.RAISED,
+        "borderwidth": 2,
+        "highlightthickness": 0,
+        "padx": 14,
+        "pady": 8,
+        "cursor": "hand2",
+    }
+    opts.update(kw)
+    return tk.Button(parent, **opts)
+
+def _cfg_btn_pri(parent, **kw):
+    opts = {
+        "font": ("Segoe UI", 10, "bold"),
+        "bg": CFG_ACCENT,
+        "fg": "white",
+        "activebackground": CFG_ACCENT_HOVER,
+        "activeforeground": "white",
+        "relief": tk.RAISED,
+        "borderwidth": 2,
+        "highlightthickness": 0,
+        "padx": 20,
+        "pady": 9,
+        "cursor": "hand2",
+    }
+    opts.update(kw)
+    return tk.Button(parent, **opts)
 
 def abrir_configuracoes(parent=None):
     is_top_level = parent is not None
@@ -570,19 +607,16 @@ def abrir_configuracoes(parent=None):
     style.configure("Cfg.TRadiobutton", background=CFG_CARD, foreground=CFG_TEXTO)
     style.map("Cfg.TCheckbutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
     style.map("Cfg.TRadiobutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
-    style.configure("Cfg.Pri.TButton", font=("Segoe UI", 10, "bold"), padding=(16, 10), background=CFG_ACCENT, foreground="white", borderwidth=0)
-    style.map("Cfg.Pri.TButton", background=[("active", CFG_ACCENT_HOVER)])
-    style.configure("Cfg.Sec.TButton", font=("Segoe UI", 10), padding=(16, 10), background=CFG_CARD_INNER, foreground=CFG_TEXTO, borderwidth=0)
-    style.map("Cfg.Sec.TButton", background=[("active", "#d0ddf0")])
-
     cfg = carregar_config()
 
-    # Sem Canvas: no Windows, Canvas + formulário costuma ficar em branco. Abas + pack direto no root.
+    # Sem Canvas: no Windows, Canvas + formulário costuma ficar em branco. Abas + grid no main (footer sempre visível).
     main = tk.Frame(root, bg=CFG_FUNDO)
     main.pack(fill="both", expand=True, padx=14, pady=(10, 6))
+    main.grid_columnconfigure(0, weight=1)
+    main.grid_rowconfigure(1, weight=1)
 
     header = tk.Frame(main, bg=CFG_FUNDO)
-    header.pack(fill="x", pady=(0, 10))
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
     tk.Label(
         header, text="Configurações",
         font=("Segoe UI", 18, "bold"), fg=CFG_TEXTO, bg=CFG_FUNDO
@@ -594,7 +628,7 @@ def abrir_configuracoes(parent=None):
     ).pack(anchor="w", pady=(4, 0))
 
     nb = ttk.Notebook(main)
-    nb.pack(fill="both", expand=True, pady=(0, 6))
+    nb.grid(row=1, column=0, sticky="nsew", pady=(0, 6))
 
     tab_geral = tk.Frame(nb, bg=CFG_FUNDO)
     tab_ap = tk.Frame(nb, bg=CFG_FUNDO)
@@ -725,8 +759,19 @@ def abrir_configuracoes(parent=None):
     font_var = tk.StringVar(value=str(cfg.get("font_size", 14)))
     ttk.Spinbox(row_font, textvariable=font_var, from_=10, to=24, width=6, style="Cfg.TSpinbox").pack(side="left")
 
-    # --- Seção: Áudio ---
-    f_aud = ttk.LabelFrame(tab_aud, text="  Áudio  ", padding=16, style="CfgCard.TLabelframe")
+    # --- Seção: Áudio (tk.LabelFrame: tk.Button/Listbox dentro de ttk.LabelFrame some no Windows) ---
+    f_aud = tk.LabelFrame(
+        tab_aud,
+        text="  Áudio  ",
+        bg=CFG_CARD,
+        fg=CFG_ACCENT,
+        font=("Segoe UI", 11, "bold"),
+        padx=16,
+        pady=16,
+        relief=tk.SOLID,
+        bd=1,
+        highlightthickness=0,
+    )
     f_aud.pack(fill="both", expand=True)
     f_aud.columnconfigure(0, weight=1)
     f_aud.rowconfigure(4, weight=1)
@@ -735,17 +780,17 @@ def abrir_configuracoes(parent=None):
     ttk.Radiobutton(f_aud, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", style="Cfg.TRadiobutton").grid(row=0, column=0, sticky="w", pady=2)
     ttk.Radiobutton(f_aud, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", style="Cfg.TRadiobutton").grid(row=1, column=0, sticky="w", pady=2)
 
-    vol_frame = ttk.Frame(f_aud, style="CfgCard.TFrame")
+    vol_frame = tk.Frame(f_aud, bg=CFG_CARD)
     vol_frame.grid(row=2, column=0, sticky="ew", pady=(10, 4))
     vol_frame.columnconfigure(0, weight=1)
-    ttk.Label(vol_frame, text="Volume das notificações", style="CfgCard.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+    tk.Label(vol_frame, text="Volume das notificações", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10)).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
     _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
     try:
         _vol_saved = max(0, min(100, int(round(float(_vol_saved)))))
     except (TypeError, ValueError):
         _vol_saved = 100
     vol_var = tk.DoubleVar(value=_vol_saved)
-    vol_pct_label = ttk.Label(vol_frame, text=f"{_vol_saved}%", style="CfgCard.TLabel", width=6)
+    vol_pct_label = tk.Label(vol_frame, text=f"{_vol_saved}%", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10), width=6)
     vol_pct_label.grid(row=1, column=1, sticky="e", padx=(10, 0))
 
     def atualizar_label_vol(*_a):
@@ -757,10 +802,12 @@ def abrir_configuracoes(parent=None):
 
     vol_var.trace_add("write", atualizar_label_vol)
     ttk.Scale(vol_frame, from_=0, to=100, variable=vol_var, orient="horizontal").grid(row=1, column=0, sticky="ew")
-    ttk.Label(
+    tk.Label(
         vol_frame,
         text="Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).",
-        style="Cfg.Subtle.TLabel",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
     ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
     def cfg_com_volume_atual():
@@ -771,10 +818,12 @@ def abrir_configuracoes(parent=None):
             c["notification_volume"] = CONFIG_PADRAO["notification_volume"]
         return c
 
-    ttk.Label(
+    tk.Label(
         f_aud,
         text="Lista de arquivos — use a barra de rolagem à direita se houver mais itens.",
-        style="Cfg.Subtle.TLabel",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
     ).grid(row=3, column=0, sticky="w", pady=(6, 2))
 
     list_wrap = tk.Frame(f_aud, bg=CFG_CARD)
@@ -899,22 +948,23 @@ def abrir_configuracoes(parent=None):
 
     aud_actions = tk.Frame(f_aud, bg=CFG_CARD)
     aud_actions.grid(row=5, column=0, sticky="ew", pady=(10, 4))
-    ttk.Button(aud_actions, text="▶ Ouvir seleção", command=reproduzir_selecionado, style="Cfg.Sec.TButton").pack(side="left", padx=(0, 6))
-    ttk.Button(aud_actions, text="■ Parar som", command=parar_som, style="Cfg.Sec.TButton").pack(side="left", padx=6)
-    ttk.Button(aud_actions, text="+ Adicionar arquivos…", command=adicionar_audios_explorer, style="Cfg.Sec.TButton").pack(side="left", padx=6)
-    ttk.Button(aud_actions, text="Abrir pasta no Explorer", command=abrir_pasta_audios_cmd, style="Cfg.Sec.TButton").pack(side="left", padx=6)
+    _cfg_btn_sec(aud_actions, text="▶ Ouvir seleção", command=reproduzir_selecionado).pack(side="left", padx=(0, 8), pady=2)
+    _cfg_btn_sec(aud_actions, text="■ Parar som", command=parar_som).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(aud_actions, text="+ Adicionar arquivos…", command=adicionar_audios_explorer).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(aud_actions, text="Abrir pasta no Explorer", command=abrir_pasta_audios_cmd).pack(side="left", padx=8, pady=2)
 
-    ttk.Label(
+    tk.Label(
         f_aud,
         text="Dica: duplo clique em um item para ouvir a prévia.",
-        style="Cfg.Subtle.TLabel",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
     ).grid(row=6, column=0, sticky="w", pady=(2, 0))
 
-    ttk.Label(f_aud, text="Pasta: " + pasta_audios(), style="Cfg.Subtle.TLabel").grid(row=7, column=0, sticky="w", pady=(6, 0))
+    tk.Label(f_aud, text="Pasta: " + pasta_audios(), bg=CFG_CARD, fg=CFG_SUB, font=("Segoe UI", 9)).grid(row=7, column=0, sticky="w", pady=(6, 0))
 
-    # --- Botões ---
-    btn_frame = ttk.Frame(root, style="CfgRoot.TFrame")
-    btn_frame.pack(fill="x", padx=14, pady=(0, 14))
+    # Rodapé: linha fixa no grid (row 2) para não ser coberto pelo Notebook com expand
+    btn_frame = tk.Frame(main, bg=CFG_FUNDO, highlightthickness=1, highlightbackground=CFG_BORDER)
 
     def testar():
         def _mostrar_popup_teste():
@@ -1009,8 +1059,9 @@ def abrir_configuracoes(parent=None):
         messagebox.showinfo("Salvo", "Configurações salvas! As mudanças valerão no próximo lembrete.")
         root.destroy()
 
-    ttk.Button(btn_frame, text="Testar popup", command=testar, style="Cfg.Sec.TButton").pack(side="left", padx=4)
-    ttk.Button(btn_frame, text="Salvar", command=salvar, style="Cfg.Pri.TButton").pack(side="right", padx=4)
+    _cfg_btn_sec(btn_frame, text="Testar popup", command=testar).pack(side="left", padx=10, pady=10)
+    _cfg_btn_pri(btn_frame, text="Salvar", command=salvar).pack(side="right", padx=10, pady=10)
+    btn_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
 
     if is_top_level:
         parent.wait_window(root)

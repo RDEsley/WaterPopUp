@@ -105,6 +105,8 @@ pyinstaller waterpopup.spec
 
 O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache do PyInstaller): `pyinstaller waterpopup.spec --clean`.
 
+**Windows — “Permission denied” / `update_exe_pe_checksum`:** o `waterpopup.exe` não pode estar em uso. Feche o app (e atalhos em segundo plano) ou use **`build-exe.bat`** / **`build-exe.ps1`**, que encerram processos `waterpopup` e em seguida rodam o PyInstaller. Se a pasta estiver no OneDrive, aguarde a sincronização ou exclua `dist` da nuvem para reduzir bloqueios.
+
 ### Usar o .exe
 
 | Ação | Comando |
