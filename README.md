@@ -59,10 +59,10 @@ O **Water-Popup** (ou Hidratar Popup) foi projetado para garantir que você nunc
 ### Dependências
 
 ```bash
-pip install pygame
+pip install -r requirements.txt
 ```
 
-> Tkinter já vem incluído no Python.
+> Tkinter já vem incluído no Python. O arquivo `requirements.txt` fixa a versão do pygame para builds reproduzíveis.
 
 ### Executar com Python
 
@@ -72,13 +72,16 @@ git clone https://github.com/RDEsley/WaterPopUp.git
 cd WaterPopUp
 
 # Instale as dependências
-pip install pygame
+pip install -r requirements.txt
 
 # Execute o lembrete (popup a cada 10 min)
 python waterpopup.py
 
 # Abrir configurações
 python waterpopup.py --config
+
+# NÃO RODE, apenas caso precise resetar o App
+pyinstaller waterpopup.spec --clean
 ```
 
 ### Gerar executável (.exe)
@@ -106,6 +109,8 @@ O `.exe` será criado em `dist/waterpopup.exe`.
 
 ## ⚙️ Configurações
 
+O app grava preferências em `config.json` (ignorado no Git). Para começar a partir de um modelo, copie `config.example.json` para `config.json` e ajuste.
+
 Execute com `--config` para abrir a interface de personalização:
 
 - **Mensagem** — Texto exibido no popup
@@ -131,9 +136,12 @@ Execute com `--config` para abrir a interface de personalização:
 WaterPopUp/
 ├── waterpopup.py              # Aplicação principal
 ├── waterpopup.spec            # Configuração PyInstaller
+├── requirements.txt           # Dependências Python
+├── config.example.json        # Modelo de config.json (versionado)
 ├── Configurar Water Popup.bat # Atalho para abrir configurações
 ├── audios/                    # Arquivos de áudio (.mp3, .wav, .ogg)
-├── config.json                # Configurações (gerado automaticamente)
+├── config.json                # Configurações (gerado automaticamente; não versionado)
+├── LICENSE                    # Licença MIT
 └── README.md
 ```
 

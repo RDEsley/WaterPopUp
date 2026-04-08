@@ -7,16 +7,29 @@ __pycache__/
 *.egg-info/
 .eggs/
 *.egg
+*.pyd
 
 # Virtual environment
 .venv/
 venv/
 env/
+ENV/
 
-# PyInstaller
+# PyInstaller / empacotamento
 build/
 dist/
 *.spec.bak
+
+# Testes e cobertura
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
 
 # Config (personalizado por usuário)
 config.json
@@ -30,3 +43,10 @@ config.json
 # OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs e temporários
+*.log
+*.tmp
+*.temp

@@ -1,0 +1,2 @@
+# Python 3.8+ (tkinter faz parte da instalação padrão do Python no Windows)
+pygame==2.6.1
