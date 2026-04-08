@@ -117,6 +117,7 @@ CONFIG_PADRAO = {
     "font_size": 14,
     "audio_mode": "random",
     "selected_audios": [],
+    "notification_volume": 100,
     "control_window_title": "💧 Water Popup",
     "control_window_status": "Water Popup ativo",
     "control_window_hint": "Feche esta janela para encerrar os lembretes",
@@ -167,15 +168,26 @@ def salvar_config(cfg):
 
 pygame.mixer.init()
 
+def _volume_pygame_de_cfg(cfg):
+    """0.0–1.0 a partir de notification_volume (0–100) no dict cfg."""
+    if cfg is None:
+        cfg = carregar_config()
+    try:
+        pct = float(cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"]))
+    except (TypeError, ValueError):
+        pct = 100.0
+    return max(0.0, min(1.0, pct / 100.0))
+
 def listar_audios():
     p = pasta_audios()
     if not os.path.isdir(p):
         return []
     return [f for f in os.listdir(p) if f.lower().endswith((".wav", ".mp3", ".ogg"))]
 
-def tocar_arquivo_audio(caminho):
-    """Reproduz um arquivo específico (prévia na config ou lembrete)."""
+def tocar_arquivo_audio(caminho, cfg=None):
+    """Reproduz um arquivo específico (prévia na config ou lembrete). cfg opcional para volume."""
     try:
+        pygame.mixer.music.set_volume(_volume_pygame_de_cfg(cfg))
         pygame.mixer.music.load(caminho)
         pygame.mixer.music.play()
     except Exception as e:
@@ -196,7 +208,7 @@ def tocar_som(cfg=None):
 
     wav_path = os.path.join(pasta_audios(), arquivo_escolhido)
     try:
-        tocar_arquivo_audio(wav_path)
+        tocar_arquivo_audio(wav_path, cfg)
     except Exception as e:
         print("Erro ao tocar som:", e)
 
@@ -448,7 +460,7 @@ def _animar_entrada(root, cfg, x1, y1, callback=None):
 def mostrar_popup(parent=None, cfg_override=None):
     base = cfg_override or carregar_config()
     cfg = _resolver_posicao_popup(base)
-    tocar_som()
+    tocar_som(base)
 
     root = tk.Toplevel(parent) if parent is not None else tk.Tk()
     root.title("Hidrate-se!")
@@ -717,20 +729,56 @@ def abrir_configuracoes(parent=None):
     f_aud = ttk.LabelFrame(tab_aud, text="  Áudio  ", padding=16, style="CfgCard.TLabelframe")
     f_aud.pack(fill="both", expand=True)
     f_aud.columnconfigure(0, weight=1)
-    f_aud.rowconfigure(3, weight=1)
+    f_aud.rowconfigure(4, weight=1)
 
     audio_mode_var = tk.StringVar(value=cfg.get("audio_mode", "random"))
     ttk.Radiobutton(f_aud, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", style="Cfg.TRadiobutton").grid(row=0, column=0, sticky="w", pady=2)
     ttk.Radiobutton(f_aud, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", style="Cfg.TRadiobutton").grid(row=1, column=0, sticky="w", pady=2)
 
+    vol_frame = ttk.Frame(f_aud, style="CfgCard.TFrame")
+    vol_frame.grid(row=2, column=0, sticky="ew", pady=(10, 4))
+    vol_frame.columnconfigure(0, weight=1)
+    ttk.Label(vol_frame, text="Volume das notificações", style="CfgCard.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+    _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
+    try:
+        _vol_saved = max(0, min(100, int(round(float(_vol_saved)))))
+    except (TypeError, ValueError):
+        _vol_saved = 100
+    vol_var = tk.DoubleVar(value=_vol_saved)
+    vol_pct_label = ttk.Label(vol_frame, text=f"{_vol_saved}%", style="CfgCard.TLabel", width=6)
+    vol_pct_label.grid(row=1, column=1, sticky="e", padx=(10, 0))
+
+    def atualizar_label_vol(*_a):
+        try:
+            v = int(round(float(vol_var.get())))
+        except tk.TclError:
+            return
+        vol_pct_label.config(text=f"{v}%")
+
+    vol_var.trace_add("write", atualizar_label_vol)
+    ttk.Scale(vol_frame, from_=0, to=100, variable=vol_var, orient="horizontal").grid(row=1, column=0, sticky="ew")
+    ttk.Label(
+        vol_frame,
+        text="Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).",
+        style="Cfg.Subtle.TLabel",
+    ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+    def cfg_com_volume_atual():
+        c = {**carregar_config()}
+        try:
+            c["notification_volume"] = int(round(float(vol_var.get())))
+        except tk.TclError:
+            c["notification_volume"] = CONFIG_PADRAO["notification_volume"]
+        return c
+
     ttk.Label(
         f_aud,
         text="Lista de arquivos — use a barra de rolagem à direita se houver mais itens.",
         style="Cfg.Subtle.TLabel",
-    ).grid(row=2, column=0, sticky="w", pady=(6, 2))
+    ).grid(row=3, column=0, sticky="w", pady=(6, 2))
 
     list_wrap = tk.Frame(f_aud, bg=CFG_CARD)
-    list_wrap.grid(row=3, column=0, sticky="nsew", pady=4)
+    list_wrap.grid(row=4, column=0, sticky="nsew", pady=4)
     list_wrap.columnconfigure(0, weight=1)
     list_wrap.rowconfigure(0, weight=1)
 
@@ -782,7 +830,7 @@ def abrir_configuracoes(parent=None):
             messagebox.showerror("Áudio", f"Arquivo não encontrado:\n{path}")
             return
         try:
-            tocar_arquivo_audio(path)
+            tocar_arquivo_audio(path, cfg_com_volume_atual())
         except Exception as e:
             messagebox.showerror("Áudio", f"Não foi possível reproduzir:\n{e}")
 
@@ -796,7 +844,7 @@ def abrir_configuracoes(parent=None):
             path = os.path.join(pasta_audios(), nome)
             if os.path.isfile(path):
                 try:
-                    tocar_arquivo_audio(path)
+                    tocar_arquivo_audio(path, cfg_com_volume_atual())
                 except Exception as e:
                     messagebox.showerror("Áudio", f"Não foi possível reproduzir:\n{e}")
 
@@ -850,7 +898,7 @@ def abrir_configuracoes(parent=None):
             messagebox.showerror("Pasta", str(e))
 
     aud_actions = tk.Frame(f_aud, bg=CFG_CARD)
-    aud_actions.grid(row=4, column=0, sticky="ew", pady=(10, 4))
+    aud_actions.grid(row=5, column=0, sticky="ew", pady=(10, 4))
     ttk.Button(aud_actions, text="▶ Ouvir seleção", command=reproduzir_selecionado, style="Cfg.Sec.TButton").pack(side="left", padx=(0, 6))
     ttk.Button(aud_actions, text="■ Parar som", command=parar_som, style="Cfg.Sec.TButton").pack(side="left", padx=6)
     ttk.Button(aud_actions, text="+ Adicionar arquivos…", command=adicionar_audios_explorer, style="Cfg.Sec.TButton").pack(side="left", padx=6)
@@ -860,9 +908,9 @@ def abrir_configuracoes(parent=None):
         f_aud,
         text="Dica: duplo clique em um item para ouvir a prévia.",
         style="Cfg.Subtle.TLabel",
-    ).grid(row=5, column=0, sticky="w", pady=(2, 0))
+    ).grid(row=6, column=0, sticky="w", pady=(2, 0))
 
-    ttk.Label(f_aud, text="Pasta: " + pasta_audios(), style="Cfg.Subtle.TLabel").grid(row=6, column=0, sticky="w", pady=(6, 0))
+    ttk.Label(f_aud, text="Pasta: " + pasta_audios(), style="Cfg.Subtle.TLabel").grid(row=7, column=0, sticky="w", pady=(6, 0))
 
     # --- Botões ---
     btn_frame = ttk.Frame(root, style="CfgRoot.TFrame")
@@ -870,6 +918,11 @@ def abrir_configuracoes(parent=None):
 
     def testar():
         def _mostrar_popup_teste():
+            try:
+                nv = int(round(float(vol_var.get())))
+            except (ValueError, tk.TclError):
+                nv = CONFIG_PADRAO["notification_volume"]
+            nv = max(0, min(100, nv))
             cfg_teste = {
                 "message": msg_var.get().strip() or "Teste! 💧",
                 "random_colors": random_colors_var.get(),
@@ -881,6 +934,7 @@ def abrir_configuracoes(parent=None):
                 "popup_duration_seconds": 4,
                 "audio_mode": audio_mode_var.get(),
                 "selected_audios": [lb.get(i) for i in lb.curselection()],
+                "notification_volume": nv,
             }
             cfg_anim = _resolver_posicao_popup(cfg_teste)
             tocar_som(cfg_teste)
@@ -930,6 +984,12 @@ def abrir_configuracoes(parent=None):
         sel_idx = lb.curselection()
         selected = [lb.get(i) for i in sel_idx]
 
+        try:
+            vol_pct = int(round(float(vol_var.get())))
+        except (ValueError, tk.TclError):
+            vol_pct = CONFIG_PADRAO["notification_volume"]
+        vol_pct = max(0, min(100, vol_pct))
+
         novo_cfg = {
             "message": msg_var.get().strip() or CONFIG_PADRAO["message"],
             "interval_minutes": max(1, min(120, interval)),
@@ -943,6 +1003,7 @@ def abrir_configuracoes(parent=None):
             "font_size": max(10, min(24, fs)),
             "audio_mode": audio_mode_var.get(),
             "selected_audios": selected,
+            "notification_volume": vol_pct,
         }
         salvar_config(novo_cfg)
         messagebox.showinfo("Salvo", "Configurações salvas! As mudanças valerão no próximo lembrete.")

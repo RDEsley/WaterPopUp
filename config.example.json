@@ -27,6 +27,7 @@
   "font_size": 14,
   "audio_mode": "random",
   "selected_audios": [],
+  "notification_volume": 100,
   "control_window_title": "💧 Water Popup",
   "control_window_status": "Water Popup ativo",
   "control_window_hint": "Feche esta janela para encerrar os lembretes"
