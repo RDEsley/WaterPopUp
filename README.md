@@ -4,7 +4,7 @@
 
 # 💧 Water-Popup
 
-**Um utilitário leve e eficiente em Python para cuidar da sua saúde enquanto você trabalha.**
+**Um utilitário leve e eficiente em Python para notificações personalizadas no Windows.**
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -16,7 +16,7 @@
 
 ## 📌 Sobre o Projeto
 
-O **Water-Popup** (ou Hidratar Popup) foi projetado para garantir que você nunca esqueça de se hidratar durante longas sessões de foco. Ele exibe lembretes visuais e sonoros periódicos de forma não intrusiva, com interface de personalização completa.
+O **Water-Popup** é um app de notificações personalizadas. Apesar do nome, ele não é limitado a hidratação: você pode configurar mensagens, visual, GIFs, áudio e frequência para qualquer tipo de lembrete pessoal ou profissional.
 
 > 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows. Ideal para iniciar junto com o PC.
 
@@ -31,8 +31,8 @@ O **Water-Popup** (ou Hidratar Popup) foi projetado para garantir que você nunc
 | 📍 **Posição Configurável** | Canto fixo (superior/inferior × esquerdo/direito) ou **aleatório** a cada lembrete. |
 | 🔊 **Feedback Sonoro** | Reprodução de arquivos (`.mp3`, `.wav`, `.ogg`) — aleatório ou seleção personalizada. |
 | ⏹️ **Áudio Inteligente** | Opção para parar o áudio quando o popup fechar (ideal para músicas longas). |
-| ✏️ **Mensagem Personalizada** | Defina sua própria mensagem de lembrete. |
-| ⏱️ **Temporização** | Intervalo entre lembretes (1–120 min) e duração do popup (3–60 seg). |
+| ✏️ **Mensagem Personalizada** | Defina sua própria mensagem de notificação. |
+| ⏱️ **Temporização** | Intervalo entre notificações (1–120 min) e duração do popup (3–60 seg). |
 | 🪶 **Baixo Consumo** | Execução otimizada em segundo plano via *Threading*. |
 | 📦 **Portabilidade** | Pronto para conversão em executável via PyInstaller. |
 | ⚙️ **Configuração Persistente** | Preferências em `config.json`: pasta do app (ou do `.exe`) quando gravável; caso contrário `%AppData%\WaterPopUp`. Variável `WATERPOPUP_CONFIG_PATH` ou `--config-path` para forçar o arquivo. |
@@ -74,7 +74,7 @@ cd WaterPopUp
 # Instale as dependências
 pip install -r requirements.txt
 
-# Execute o lembrete (popup a cada 10 min)
+# Execute as notificações (popup no intervalo configurado)
 python waterpopup.py
 
 # Abrir configurações
@@ -85,7 +85,7 @@ python waterpopup.py --config
 
 | Argumento | Descrição |
 |-----------|-----------|
-| *(nenhum)* | Abre a janela principal com lembretes |
+| *(nenhum)* | Abre a janela principal com notificações |
 | `--config` ou `-c` | Abre só a janela de configurações |
 | `--config-path CAMINHO` | Usa esse arquivo como `config.json` (sessão atual) |
 | `--print-config-path` | Imprime o caminho do `config.json` em uso e encerra |
@@ -111,7 +111,7 @@ O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache d
 
 | Ação | Comando |
 |------|---------|
-| Iniciar lembretes | `waterpopup.exe` |
+| Iniciar notificações | `waterpopup.exe` |
 | Abrir configurações | `waterpopup.exe --config` ou `waterpopup.exe -c` |
 | Outras opções | Mesmos argumentos da tabela acima (ex.: `waterpopup.exe --print-config-path`) |
 
@@ -131,13 +131,17 @@ O app grava preferências em `config.json` (ignorado no Git). Para começar a pa
 Execute com `--config` para abrir a interface de personalização:
 
 - **Mensagem** — Texto exibido no popup
-- **Intervalo** — Minutos entre cada lembrete (1–120)
+- **Intervalo** — Minutos entre cada notificação (1–120)
 - **Duração** — Segundos que o popup permanece na tela (3–60)
+- **Posição** — Aleatório (incluindo centro) ou posição fixa (cantos + centro)
+- **Visual** — Notificação padrão (texto) ou GIF animado
+- **GIFs** — Seleção pelo explorador, histórico salvo e opção de GIF aleatório a cada notificação
+- **Tela cheia** — Opção para cobrir toda a tela durante o lembrete (inclusive no modo GIF)
 - **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
 - **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
 - **Animação** — Aleatória, Deslizar, Vertical, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
-- **Posição** — Aleatório (canto diferente a cada lembrete) ou canto fixo (superior/inferior, esquerdo/direito)
 - **Fonte** — Tamanho do texto (10–24 px)
+- **Extras divertidos** — Efeitos de mensagem (sem efeito, brilho, água e festa)
 - **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`
 - **Janela principal (opcional, só no JSON)** — `control_window_title`, `control_window_status`, `control_window_hint` personalizam título, texto de estado e dica da janela de controle
 
@@ -192,6 +196,6 @@ Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) par
 
 <div align="center">
 
-*⭐ Beba água e deixe uma estrela no repositório! ⭐*
+*⭐ Personalize suas notificações e deixe uma estrela no repositório! ⭐*
 
 </div>

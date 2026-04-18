@@ -1,5 +1,5 @@
 """
-Hidratar Popup - Lembrete para beber água
+Water Popup - Notificação personalizada
 Suporta personalização via config.json (na mesma pasta do .exe)
 Execute com --config para abrir as configurações.
 """
@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import json
+import math
 import argparse
 import shutil
 import subprocess
@@ -15,6 +16,21 @@ import tkinter as tk
 from tkinter import ttk, messagebox, font as tkfont, filedialog
 import pygame
 import random
+
+try:
+    from PIL import Image, ImageTk, ImageOps
+    PIL_DISPONIVEL = True
+except Exception:
+    Image = ImageTk = ImageOps = None
+    PIL_DISPONIVEL = False
+
+if PIL_DISPONIVEL:
+    try:
+        PIL_RESAMPLING_LANCZOS = Image.Resampling.LANCZOS
+    except Exception:
+        PIL_RESAMPLING_LANCZOS = Image.LANCZOS
+else:
+    PIL_RESAMPLING_LANCZOS = None
 
 # ============ PATHS ============
 
@@ -73,6 +89,58 @@ def pasta_audios():
         return externa
     return caminho_recurso("audios")
 
+def pasta_gifs():
+    externa = os.path.join(pasta_base(), "gifs")
+    if os.path.isdir(externa):
+        return externa
+    interna = os.path.join(pasta_config(), "gifs")
+    os.makedirs(interna, exist_ok=True)
+    return interna
+
+def importar_gif_para_app(origem):
+    origem_abs = os.path.abspath(origem)
+    if not origem_abs.lower().endswith(".gif"):
+        raise ValueError("Selecione um arquivo .gif")
+    if not os.path.isfile(origem_abs):
+        raise FileNotFoundError("Arquivo GIF não encontrado")
+
+    destino_dir = pasta_gifs()
+    os.makedirs(destino_dir, exist_ok=True)
+    destino = os.path.join(destino_dir, os.path.basename(origem_abs))
+
+    if os.path.normcase(origem_abs) == os.path.normcase(os.path.abspath(destino)):
+        return destino
+
+    shutil.copy2(origem_abs, destino)
+    return destino
+
+def normalizar_historico_gifs(lista):
+    vistos = set()
+    normalizados = []
+    for item in lista or []:
+        p = os.path.normpath(str(item).strip())
+        if not p or not p.lower().endswith(".gif"):
+            continue
+        chave = os.path.normcase(p)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        normalizados.append(p)
+    return normalizados
+
+def resolver_gif_do_popup(cfg):
+    gif_mode = str(cfg.get("gif_mode", "single")).lower().strip()
+    gif_atual = (cfg.get("gif_path") or "").strip()
+    historico = normalizar_historico_gifs(cfg.get("gif_history", []))
+    validos = [p for p in historico if os.path.isfile(p)]
+    if gif_mode == "random_history" and validos:
+        return random.choice(validos)
+    if gif_atual and os.path.isfile(gif_atual):
+        return gif_atual
+    if validos:
+        return validos[-1]
+    return gif_atual
+
 # ============ PALETAS DE CORES ============
 
 PALETAS = {
@@ -105,22 +173,30 @@ PALETAS = {
 # ============ CONFIG ============
 
 CONFIG_PADRAO = {
-    "message": "Drink some water! 💧",
+    "message": "Hora da sua notificação personalizada! 🔔",
     "interval_minutes": 10,
     "popup_duration_seconds": 5,
+    "fullscreen_notification": False,
     "stop_audio_on_close": True,
+    "visual_mode": "notification",
+    "gif_mode": "single",
+    "gif_fit_mode": "contain",
+    "gif_fullscreen_zoom_percent": 140,
+    "gif_path": "",
+    "gif_history": [],
     "random_colors": True,
     "color_palette": "Pastel",
     "colors": PALETAS["Pastel"].copy(),
     "popup_animation": "slide",
     "popup_position": "top-right",
     "font_size": 14,
+    "fun_mode": "none",
     "audio_mode": "random",
     "selected_audios": [],
     "notification_volume": 100,
-    "control_window_title": "💧 Water Popup",
-    "control_window_status": "Water Popup ativo",
-    "control_window_hint": "Feche esta janela para encerrar os lembretes",
+    "control_window_title": "🔔 Water Popup",
+    "control_window_status": "Notificações ativas",
+    "control_window_hint": "Feche esta janela para encerrar as notificações",
 }
 
 _config_cache = None
@@ -231,12 +307,13 @@ def abrir_pasta_no_explorador(pasta):
 # ============ ANIMAÇÕES ============
 
 _CANTOS_POPUP = ("top-right", "top-left", "bottom-right", "bottom-left")
+_POSICOES_POPUP = _CANTOS_POPUP + ("center",)
 
 def _resolver_posicao_popup(cfg):
     """Resolve 'random' para um canto concreto (cada chamada pode variar)."""
     c = dict(cfg)
     if c.get("popup_position") == "random":
-        c["popup_position"] = random.choice(_CANTOS_POPUP)
+        c["popup_position"] = random.choice(_POSICOES_POPUP)
     return c
 
 def _pos_inicial(cfg, w, h, popup_w=300, popup_h=100):
@@ -250,6 +327,8 @@ def _pos_inicial(cfg, w, h, popup_w=300, popup_h=100):
         return w - popup_w - margin, h - popup_h - margin
     elif pos == "bottom-left":
         return margin, h - popup_h - margin
+    elif pos == "center":
+        return max(0, (w - popup_w) // 2), max(0, (h - popup_h) // 2)
     else:
         return w - popup_w - margin, margin
 
@@ -457,20 +536,89 @@ def _animar_entrada(root, cfg, x1, y1, callback=None):
 
 # ============ POPUP ============
 
+def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain", fullscreen_zoom=1.0):
+    """
+    Carrega GIF animado com Pillow para evitar artefatos visuais do tk.PhotoImage
+    (borrões pretos / transparência) e reduzir risco de crash por memória.
+    Retorna (frames, duracoes_ms).
+    """
+    if not PIL_DISPONIVEL:
+        return [], []
+    frames = []
+    duracoes = []
+    max_frames = 180
+    min_delay = 20
+    max_delay = 300
+
+    try:
+        with Image.open(caminho_gif) as img:
+            total_frames = max(1, int(getattr(img, "n_frames", 1)))
+            step = max(1, math.ceil(total_frames / max_frames))
+
+            for idx in range(0, total_frames, step):
+                img.seek(idx)
+                frame = img.convert("RGBA")
+                if max_w and max_h:
+                    if fit_mode == "cover":
+                        frame = ImageOps.fit(
+                            frame,
+                            (max_w, max_h),
+                            method=PIL_RESAMPLING_LANCZOS,
+                            centering=(0.5, 0.5),
+                        )
+                    else:
+                        frame = ImageOps.contain(frame, (max_w, max_h), method=PIL_RESAMPLING_LANCZOS)
+
+                    # Zoom extra (somente para tela cheia). Depois corta no centro para manter composição.
+                    if fullscreen_zoom > 1.0:
+                        zoom_w = max(1, int(frame.width * fullscreen_zoom))
+                        zoom_h = max(1, int(frame.height * fullscreen_zoom))
+                        frame = frame.resize((zoom_w, zoom_h), PIL_RESAMPLING_LANCZOS)
+                        if zoom_w >= max_w and zoom_h >= max_h:
+                            left = (zoom_w - max_w) // 2
+                            top = (zoom_h - max_h) // 2
+                            frame = frame.crop((left, top, left + max_w, top + max_h))
+                        else:
+                            fundo = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 255))
+                            paste_x = (max_w - zoom_w) // 2
+                            paste_y = (max_h - zoom_h) // 2
+                            fundo.paste(frame, (paste_x, paste_y), frame)
+                            frame = fundo
+                tk_frame = ImageTk.PhotoImage(frame)
+                frames.append(tk_frame)
+                dur = int(img.info.get("duration", 80) or 80)
+                duracoes.append(max(min_delay, min(max_delay, dur * step)))
+    except Exception:
+        return [], []
+
+    return frames, duracoes
+
+def _aplicar_modo_divertido(msg, cfg):
+    modo = str(cfg.get("fun_mode", "none")).strip().lower()
+    if modo == "sparkles":
+        return f"✨ {msg} ✨"
+    if modo == "party":
+        return f"🎉 {msg} 🥳"
+    if modo == "water":
+        gotas = "".join(random.choice(["💧", "🫧", "🌊"]) for _ in range(3))
+        return f"{gotas}  {msg}  {gotas}"
+    return msg
+
 def mostrar_popup(parent=None, cfg_override=None):
     base = cfg_override or carregar_config()
     cfg = _resolver_posicao_popup(base)
     tocar_som(base)
 
     root = tk.Toplevel(parent) if parent is not None else tk.Tk()
-    root.title("Hidrate-se!")
+    root.title("Notificação")
     root.attributes("-topmost", True)
     root.overrideredirect(True)
     root.configure(bg="white")
 
     w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    popup_w, popup_h = 340, 130
-    x1, y1 = _pos_inicial(cfg, w, h, popup_w, popup_h)
+    fullscreen = bool(cfg.get("fullscreen_notification", False))
+    popup_w, popup_h = (w, h) if fullscreen else (340, 130)
+    x1, y1 = (0, 0) if fullscreen else _pos_inicial(cfg, w, h, popup_w, popup_h)
 
     root.geometry(f"{popup_w}x{popup_h}+{x1}+{y1}")
 
@@ -481,29 +629,130 @@ def mostrar_popup(parent=None, cfg_override=None):
         cores = cfg.get("colors", PALETAS["Pastel"])
         cor = cores[0] if cores else "#87CEEB"
 
-    msg = cfg.get("message", CONFIG_PADRAO["message"])
+    msg = _aplicar_modo_divertido(cfg.get("message", CONFIG_PADRAO["message"]), cfg)
     duracao_ms = int(cfg.get("popup_duration_seconds", 12)) * 1000
     stop_audio = cfg.get("stop_audio_on_close", True)
     font_size = int(cfg.get("font_size", 14))
-
-    lbl = tk.Label(
-        root, text=msg, font=("Segoe UI", font_size, "bold"),
-        bg=cor, fg="#1a1a2e", wraplength=300,
-        cursor="hand2", relief="flat", padx=16, pady=16
-    )
-    lbl.pack(expand=True, fill="both")
-    lbl.bind("<Button-1>", lambda e: fechar_popup())
+    visual_mode = str(cfg.get("visual_mode", "notification")).lower().strip()
+    if visual_mode not in ("notification", "gif"):
+        visual_mode = "notification"
+    gif_fit_mode = str(cfg.get("gif_fit_mode", "contain")).strip().lower()
+    if gif_fit_mode not in ("contain", "cover"):
+        gif_fit_mode = "contain"
+    try:
+        gif_zoom_pct = int(round(float(cfg.get("gif_fullscreen_zoom_percent", 140))))
+    except (TypeError, ValueError):
+        gif_zoom_pct = 140
+    gif_zoom_pct = max(100, min(300, gif_zoom_pct))
+    gif_zoom_mult = gif_zoom_pct / 100.0
+    gif_path = resolver_gif_do_popup(cfg).strip()
+    root._gif_after_id = None
 
     def fechar_popup():
+        if getattr(root, "_gif_after_id", None) is not None:
+            try:
+                root.after_cancel(root._gif_after_id)
+            except Exception:
+                pass
+            root._gif_after_id = None
         if stop_audio:
             parar_som()
         if root.winfo_exists():
             root.destroy()
 
+    if visual_mode == "gif" and os.path.isfile(gif_path):
+        if not PIL_DISPONIVEL:
+            visual_mode = "notification"
+            msg = "Pillow não instalado para renderizar GIF. Usando notificação padrão.\n\n" + msg
+        else:
+            root.configure(bg="black")
+            bg_container = tk.Frame(root, bg="black")
+            bg_container.pack(expand=True, fill="both")
+            bg_container.bind("<Button-1>", lambda e: fechar_popup())
+
+            gif_label = tk.Label(
+                bg_container,
+                bg="black",
+                cursor="hand2",
+                bd=0,
+                highlightthickness=0,
+                relief="flat",
+            )
+            gif_label.place(relx=0.5, rely=0.5, anchor="center")
+            gif_label.bind("<Button-1>", lambda e: fechar_popup())
+
+            area_w = popup_w - (80 if fullscreen else 20)
+            area_h = popup_h - (120 if fullscreen else 20)
+            area_w = max(160, area_w)
+            area_h = max(120, area_h)
+
+            frames, duracoes = _carregar_frames_gif(
+                gif_path,
+                area_w,
+                area_h,
+                gif_fit_mode,
+                gif_zoom_mult if fullscreen else 1.0,
+            )
+            if frames:
+                root._gif_frames = frames
+                root._gif_duracoes = duracoes
+
+                def animar_gif(i=0):
+                    if not root.winfo_exists() or not frames:
+                        return
+                    i = i % len(frames)
+                    frame = frames[i]
+                    gif_label.configure(image=frame)
+                    gif_label.image = frame
+                    delay = duracoes[i] if i < len(duracoes) else 80
+                    root._gif_after_id = root.after(delay, lambda: animar_gif(i + 1))
+
+                animar_gif(0)
+
+                if fullscreen:
+                    hint = tk.Label(
+                        bg_container,
+                        text="Clique para fechar",
+                        bg="#000000",
+                        fg="#f8fafc",
+                        font=("Segoe UI", 10, "bold"),
+                        padx=14,
+                        pady=6,
+                    )
+                    hint.place(relx=0.5, rely=0.96, anchor="s")
+                    hint.bind("<Button-1>", lambda e: fechar_popup())
+            else:
+                visual_mode = "notification"
+                msg = "Não foi possível decodificar o GIF. Usando notificação padrão.\n\n" + msg
+
+    if visual_mode != "gif":
+        txt = msg
+        if cfg.get("visual_mode") == "gif" and gif_path and not os.path.isfile(gif_path):
+            txt = f"GIF não encontrado, exibindo notificação padrão.\n\n{msg}"
+
+        lbl = tk.Label(
+            root,
+            text=txt,
+            font=("Segoe UI", font_size, "bold"),
+            bg=cor,
+            fg="#1a1a2e",
+            wraplength=max(300, popup_w - 80),
+            cursor="hand2",
+            relief="flat",
+            padx=16 if not fullscreen else 40,
+            pady=16 if not fullscreen else 40,
+            justify="center",
+        )
+        lbl.pack(expand=True, fill="both")
+        lbl.bind("<Button-1>", lambda e: fechar_popup())
+
     def agendar_fechar():
         root.after(duracao_ms, fechar_popup)
 
-    _animar_entrada(root, cfg, x1, y1, agendar_fechar)
+    if fullscreen:
+        agendar_fechar()
+    else:
+        _animar_entrada(root, cfg, x1, y1, agendar_fechar)
     if parent is None:
         root.mainloop()
 
@@ -581,9 +830,9 @@ def _cfg_btn_pri(parent, **kw):
 def abrir_configuracoes(parent=None):
     is_top_level = parent is not None
     root = tk.Toplevel(parent) if is_top_level else tk.Tk()
-    root.title("💧 Hidratar — Configurações")
-    root.geometry("880x760")
-    root.minsize(560, 480)
+    root.title("🔔 Water Popup — Configurações")
+    root.geometry("980x780")
+    root.minsize(700, 560)
     root.resizable(True, True)
     root.configure(bg=CFG_FUNDO)
     if is_top_level:
@@ -607,9 +856,9 @@ def abrir_configuracoes(parent=None):
     style.configure("Cfg.TRadiobutton", background=CFG_CARD, foreground=CFG_TEXTO)
     style.map("Cfg.TCheckbutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
     style.map("Cfg.TRadiobutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
+
     cfg = carregar_config()
 
-    # Sem Canvas: no Windows, Canvas + formulário costuma ficar em branco. Abas + grid no main (footer sempre visível).
     main = tk.Frame(root, bg=CFG_FUNDO)
     main.pack(fill="both", expand=True, padx=14, pady=(10, 6))
     main.grid_columnconfigure(0, weight=1)
@@ -623,37 +872,94 @@ def abrir_configuracoes(parent=None):
     ).pack(anchor="w")
     tk.Label(
         header,
-        text="Personalize o lembrete de hidratação. As alterações são salvas no arquivo de configuração.",
+        text="Personalize suas notificações. As alterações são salvas no arquivo de configuração.",
         font=("Segoe UI", 9), fg=CFG_SUB, bg=CFG_FUNDO, wraplength=760, justify="left",
     ).pack(anchor="w", pady=(4, 0))
+
+    # ========= Variáveis-base =========
+    msg_var = tk.StringVar(value=cfg.get("message", CONFIG_PADRAO["message"]))
+    interval_var = tk.StringVar(value=str(cfg.get("interval_minutes", 10)))
+    duration_var = tk.StringVar(value=str(cfg.get("popup_duration_seconds", 12)))
+    stop_audio_var = tk.BooleanVar(value=cfg.get("stop_audio_on_close", True))
+    fullscreen_var = tk.BooleanVar(value=cfg.get("fullscreen_notification", False))
+
+    random_colors_var = tk.BooleanVar(value=cfg.get("random_colors", True))
+    palette_var = tk.StringVar(value=cfg.get("color_palette", "Pastel"))
+    anim_var = tk.StringVar(value=cfg.get("popup_animation", "slide"))
+    font_var = tk.StringVar(value=str(cfg.get("font_size", 14)))
+
+    pos_saved = cfg.get("popup_position", "top-right")
+    if pos_saved not in _POSICOES_POPUP + ("random",):
+        pos_saved = "top-right"
+    pos_var = tk.StringVar(value=pos_saved)
+
+    visual_mode_saved = str(cfg.get("visual_mode", "notification")).lower().strip()
+    if visual_mode_saved not in ("notification", "gif"):
+        visual_mode_saved = "notification"
+    visual_mode_var = tk.StringVar(value=visual_mode_saved)
+
+    gif_mode_saved = str(cfg.get("gif_mode", "single")).lower().strip()
+    if gif_mode_saved not in ("single", "random_history"):
+        gif_mode_saved = "single"
+    gif_mode_var = tk.StringVar(value=gif_mode_saved)
+    gif_fit_mode_saved = str(cfg.get("gif_fit_mode", "contain")).lower().strip()
+    if gif_fit_mode_saved not in ("contain", "cover"):
+        gif_fit_mode_saved = "contain"
+    gif_fit_mode_var = tk.StringVar(value=gif_fit_mode_saved)
+    gif_zoom_saved = cfg.get("gif_fullscreen_zoom_percent", 140)
+    try:
+        gif_zoom_saved = max(100, min(300, int(round(float(gif_zoom_saved)))))
+    except (TypeError, ValueError):
+        gif_zoom_saved = 140
+    gif_zoom_var = tk.StringVar(value=str(gif_zoom_saved))
+    gif_path_var = tk.StringVar(value=(cfg.get("gif_path") or "").strip())
+    gif_history = normalizar_historico_gifs(cfg.get("gif_history", []))
+
+    fun_mode_saved = str(cfg.get("fun_mode", "none")).lower().strip()
+    if fun_mode_saved not in ("none", "sparkles", "water", "party"):
+        fun_mode_saved = "none"
+    fun_mode_var = tk.StringVar(value=fun_mode_saved)
+
+    _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
+    try:
+        _vol_saved = max(0, min(100, int(round(float(_vol_saved)))))
+    except (TypeError, ValueError):
+        _vol_saved = 100
+    vol_var = tk.DoubleVar(value=_vol_saved)
+
+    audio_mode_var = tk.StringVar(value=cfg.get("audio_mode", "random"))
 
     nb = ttk.Notebook(main)
     nb.grid(row=1, column=0, sticky="nsew", pady=(0, 6))
 
     tab_geral = tk.Frame(nb, bg=CFG_FUNDO)
+    tab_notif = tk.Frame(nb, bg=CFG_FUNDO)
     tab_ap = tk.Frame(nb, bg=CFG_FUNDO)
     tab_aud = tk.Frame(nb, bg=CFG_FUNDO)
+    tab_extra = tk.Frame(nb, bg=CFG_FUNDO)
+
     nb.add(tab_geral, text="  Geral  ")
+    nb.add(tab_notif, text="  Notificação  ")
     nb.add(tab_ap, text="  Aparência  ")
     nb.add(tab_aud, text="  Áudio  ")
+    nb.add(tab_extra, text="  Extras  ")
 
-    # --- Seção: Mensagem ---
-    f_msg = ttk.LabelFrame(tab_geral, text="  Mensagem  ", padding=16, style="CfgCard.TLabelframe")
+    # ========= Aba Geral =========
+    f_msg = ttk.LabelFrame(tab_geral, text="  Mensagem principal  ", padding=16, style="CfgCard.TLabelframe")
     f_msg.pack(fill="x", pady=(0, 12))
     f_msg.columnconfigure(0, weight=1)
-
-    msg_var = tk.StringVar(value=cfg.get("message", CONFIG_PADRAO["message"]))
     msg_entry = ttk.Entry(f_msg, textvariable=msg_var, style="Cfg.TEntry")
     msg_entry.grid(row=0, column=0, sticky="ew", pady=(4, 0))
+    ttk.Label(
+        f_msg,
+        text="Mensagem exibida em todas as notificações.",
+        style="Cfg.Subtle.TLabel",
+    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
 
-    # --- Seção: Temporização ---
     f_temp = ttk.LabelFrame(tab_geral, text="  Temporização  ", padding=16, style="CfgCard.TLabelframe")
     f_temp.pack(fill="x", pady=(0, 0))
     f_temp.columnconfigure(0, weight=1)
     f_temp.columnconfigure(1, weight=1)
-
-    interval_var = tk.StringVar(value=str(cfg.get("interval_minutes", 10)))
-    duration_var = tk.StringVar(value=str(cfg.get("popup_duration_seconds", 12)))
 
     g_temp = ttk.Frame(f_temp, style="CfgCard.TFrame")
     g_temp.grid(row=0, column=0, columnspan=2, sticky="ew", pady=4)
@@ -670,22 +976,259 @@ def abrir_configuracoes(parent=None):
     ttk.Label(col_dur, text="Duração do popup na tela (seg)", style="CfgCard.TLabel").pack(anchor="w")
     ttk.Spinbox(col_dur, textvariable=duration_var, from_=3, to=60, width=8, style="Cfg.TSpinbox").pack(anchor="w", pady=(4, 0))
 
-    stop_audio_var = tk.BooleanVar(value=cfg.get("stop_audio_on_close", True))
-    ttk.Checkbutton(
-        f_temp, text="Parar áudio ao fechar o popup (recomendado para áudios longos)",
-        variable=stop_audio_var, style="Cfg.TCheckbutton"
-    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    # ========= Aba Notificação =========
+    f_notif = ttk.LabelFrame(tab_notif, text="  Exibição  ", padding=16, style="CfgCard.TLabelframe")
+    f_notif.pack(fill="x", pady=(0, 12))
+    f_notif.columnconfigure(0, weight=1)
 
-    # --- Seção: Aparência ---
+    ttk.Label(f_notif, text="Posição na tela", style="CfgCard.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
+    row_pos0 = ttk.Frame(f_notif, style="CfgCard.TFrame")
+    row_pos0.grid(row=1, column=0, sticky="ew", pady=2)
+    ttk.Radiobutton(
+        row_pos0, text="Aleatório (inclui centro)",
+        variable=pos_var, value="random", style="Cfg.TRadiobutton"
+    ).pack(anchor="w")
+    row_pos1 = ttk.Frame(f_notif, style="CfgCard.TFrame")
+    row_pos1.grid(row=2, column=0, sticky="ew", pady=2)
+    row_pos2 = ttk.Frame(f_notif, style="CfgCard.TFrame")
+    row_pos2.grid(row=3, column=0, sticky="ew", pady=2)
+    ttk.Radiobutton(row_pos1, text="Superior direito", variable=pos_var, value="top-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(row_pos1, text="Superior esquerdo", variable=pos_var, value="top-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(row_pos2, text="Inferior direito", variable=pos_var, value="bottom-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(row_pos2, text="Inferior esquerdo", variable=pos_var, value="bottom-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(row_pos2, text="Centro", variable=pos_var, value="center", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+
+    ttk.Checkbutton(
+        f_notif, text="Cobrir toda a tela ao exibir o lembrete",
+        variable=fullscreen_var, style="Cfg.TCheckbutton"
+    ).grid(row=4, column=0, sticky="w", pady=(10, 0))
+    ttk.Checkbutton(
+        f_notif, text="Parar áudio ao fechar o popup (recomendado para áudios longos)",
+        variable=stop_audio_var, style="Cfg.TCheckbutton"
+    ).grid(row=5, column=0, sticky="w", pady=(8, 0))
+
+    f_gif = tk.LabelFrame(
+        tab_notif,
+        text="  GIFs  ",
+        bg=CFG_CARD,
+        fg=CFG_ACCENT,
+        font=("Segoe UI", 11, "bold"),
+        padx=16,
+        pady=16,
+        relief=tk.SOLID,
+        bd=1,
+        highlightthickness=0,
+    )
+    f_gif.pack(fill="both", expand=True)
+    f_gif.columnconfigure(0, weight=1)
+    f_gif.rowconfigure(7, weight=1)
+
+    ttk.Radiobutton(
+        f_gif, text="Usar notificação padrão (texto e cores)",
+        variable=visual_mode_var, value="notification", style="Cfg.TRadiobutton"
+    ).grid(row=0, column=0, sticky="w", pady=2)
+    ttk.Radiobutton(
+        f_gif, text="Usar GIF animado",
+        variable=visual_mode_var, value="gif", style="Cfg.TRadiobutton"
+    ).grid(row=1, column=0, sticky="w", pady=2)
+
+    row_gif_mode = tk.Frame(f_gif, bg=CFG_CARD)
+    row_gif_mode.grid(row=2, column=0, sticky="w", pady=(8, 2))
+    ttk.Radiobutton(
+        row_gif_mode, text="GIF fixo", variable=gif_mode_var, value="single", style="Cfg.TRadiobutton"
+    ).pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(
+        row_gif_mode, text="Aleatório do histórico", variable=gif_mode_var, value="random_history", style="Cfg.TRadiobutton"
+    ).pack(side="left", padx=(0, 12))
+
+    row_gif_fit = tk.Frame(f_gif, bg=CFG_CARD)
+    row_gif_fit.grid(row=3, column=0, sticky="w", pady=(4, 2))
+    tk.Label(
+        row_gif_fit,
+        text="Ajuste do GIF:",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
+    ).pack(side="left", padx=(0, 8))
+    ttk.Radiobutton(
+        row_gif_fit, text="Ajustar inteiro", variable=gif_fit_mode_var, value="contain", style="Cfg.TRadiobutton"
+    ).pack(side="left", padx=(0, 12))
+    ttk.Radiobutton(
+        row_gif_fit, text="Preencher área (pode cortar)", variable=gif_fit_mode_var, value="cover", style="Cfg.TRadiobutton"
+    ).pack(side="left", padx=(0, 12))
+
+    row_gif_zoom = tk.Frame(f_gif, bg=CFG_CARD)
+    row_gif_zoom.grid(row=4, column=0, sticky="w", pady=(2, 2))
+    tk.Label(
+        row_gif_zoom,
+        text="Zoom em tela cheia (%)",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
+    ).pack(side="left", padx=(0, 8))
+    ttk.Spinbox(
+        row_gif_zoom,
+        textvariable=gif_zoom_var,
+        from_=100,
+        to=300,
+        width=6,
+        style="Cfg.TSpinbox",
+    ).pack(side="left")
+
+    row_gif_path = tk.Frame(f_gif, bg=CFG_CARD)
+    row_gif_path.grid(row=5, column=0, sticky="ew", pady=(8, 2))
+    row_gif_path.columnconfigure(0, weight=1)
+    gif_entry = tk.Entry(
+        row_gif_path,
+        textvariable=gif_path_var,
+        font=("Segoe UI", 9),
+        bg="white",
+        fg=CFG_TEXTO,
+        relief="solid",
+        bd=1,
+    )
+    gif_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+    gif_actions = tk.Frame(f_gif, bg=CFG_CARD)
+    gif_actions.grid(row=6, column=0, sticky="ew", pady=(4, 6))
+
+    row_hist = tk.Frame(f_gif, bg=CFG_CARD)
+    row_hist.grid(row=7, column=0, sticky="nsew", pady=(4, 0))
+    row_hist.columnconfigure(0, weight=1)
+    row_hist.rowconfigure(1, weight=1)
+    tk.Label(
+        row_hist,
+        text="Histórico de GIFs salvos",
+        bg=CFG_CARD,
+        fg=CFG_SUB,
+        font=("Segoe UI", 9),
+    ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+    hist_wrap = tk.Frame(row_hist, bg=CFG_CARD)
+    hist_wrap.grid(row=1, column=0, sticky="nsew")
+    hist_wrap.columnconfigure(0, weight=1)
+    hist_wrap.rowconfigure(0, weight=1)
+    sb_hist = tk.Scrollbar(hist_wrap, orient="vertical", width=14)
+    lb_hist = tk.Listbox(
+        hist_wrap,
+        selectmode="extended",
+        height=8,
+        bg="white",
+        fg=CFG_TEXTO,
+        selectbackground=CFG_ACCENT,
+        selectforeground="white",
+        font=("Segoe UI", 9),
+        highlightthickness=1,
+        highlightbackground=CFG_BORDER,
+        relief="solid",
+        yscrollcommand=sb_hist.set,
+    )
+    sb_hist.config(command=lb_hist.yview)
+    lb_hist.grid(row=0, column=0, sticky="nsew")
+    sb_hist.grid(row=0, column=1, sticky="ns")
+
+    def recarregar_historico_gif(selecao=None):
+        lb_hist.delete(0, tk.END)
+        for p in gif_history:
+            lb_hist.insert(tk.END, p)
+        if selecao:
+            for i in range(lb_hist.size()):
+                if lb_hist.get(i) == selecao:
+                    lb_hist.selection_set(i)
+                    lb_hist.see(i)
+                    break
+
+    recarregar_historico_gif(gif_path_var.get().strip() or None)
+
+    def adicionar_ao_historico(caminho):
+        nonlocal gif_history
+        item = os.path.normpath(caminho)
+        gif_history = normalizar_historico_gifs(gif_history + [item])
+        recarregar_historico_gif(item)
+
+    def escolher_gif_explorer():
+        path = filedialog.askopenfilename(
+            parent=root,
+            title="Selecionar GIF animado",
+            filetypes=[("GIF animado", "*.gif"), ("GIF", "*.gif"), ("Todos", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            destino = importar_gif_para_app(path)
+        except Exception as e:
+            messagebox.showerror("GIF", str(e))
+            return
+        gif_path_var.set(destino)
+        adicionar_ao_historico(destino)
+
+    def adicionar_gifs_explorer():
+        paths = filedialog.askopenfilenames(
+            parent=root,
+            title="Adicionar GIFs ao histórico",
+            filetypes=[("GIF animado", "*.gif"), ("GIF", "*.gif"), ("Todos", "*.*")],
+        )
+        if not paths:
+            return
+        copiados = 0
+        falhas = 0
+        ultimo = None
+        for src in paths:
+            try:
+                destino = importar_gif_para_app(src)
+                adicionar_ao_historico(destino)
+                copiados += 1
+                ultimo = destino
+            except Exception:
+                falhas += 1
+        if ultimo:
+            gif_path_var.set(ultimo)
+        msg = f"GIFs adicionados: {copiados}."
+        if falhas:
+            msg += f"\nFalhas: {falhas}."
+        messagebox.showinfo("GIF", msg)
+
+    def usar_gif_selecionado_hist():
+        sel = lb_hist.curselection()
+        if not sel:
+            return
+        gif_path_var.set(lb_hist.get(sel[0]))
+
+    def remover_gif_selecionado_hist():
+        nonlocal gif_history
+        sel = lb_hist.curselection()
+        if not sel:
+            return
+        remover = {lb_hist.get(i) for i in sel}
+        gif_history = [p for p in gif_history if p not in remover]
+        if gif_path_var.get().strip() in remover:
+            gif_path_var.set("")
+        recarregar_historico_gif()
+
+    def limpar_historico_gif():
+        nonlocal gif_history
+        if not gif_history:
+            return
+        if messagebox.askyesno("GIF", "Limpar todo o histórico de GIFs?"):
+            gif_history = []
+            gif_path_var.set("")
+            recarregar_historico_gif()
+
+    lb_hist.bind("<Double-Button-1>", lambda _e: usar_gif_selecionado_hist())
+
+    _cfg_btn_sec(gif_actions, text="Escolher GIF…", command=escolher_gif_explorer).pack(side="left", padx=(0, 8), pady=2)
+    _cfg_btn_sec(gif_actions, text="+ Adicionar vários…", command=adicionar_gifs_explorer).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(gif_actions, text="Usar selecionado", command=usar_gif_selecionado_hist).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(gif_actions, text="Remover do histórico", command=remover_gif_selecionado_hist).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(gif_actions, text="Limpar histórico", command=limpar_historico_gif).pack(side="left", padx=8, pady=2)
+
+    # ========= Aba Aparência (somente visual da notificação padrão) =========
     f_ap = ttk.LabelFrame(tab_ap, text="  Aparência  ", padding=16, style="CfgCard.TLabelframe")
     f_ap.pack(fill="both", expand=True)
     f_ap.columnconfigure(0, weight=1)
 
-    random_colors_var = tk.BooleanVar(value=cfg.get("random_colors", True))
     ttk.Checkbutton(f_ap, text="Cores aleatórias a cada popup", variable=random_colors_var, style="Cfg.TCheckbutton").grid(row=0, column=0, sticky="w")
 
     ttk.Label(f_ap, text="Paleta de cores", style="CfgCard.TLabel").grid(row=1, column=0, sticky="w", pady=(12, 4))
-    palette_var = tk.StringVar(value=cfg.get("color_palette", "Pastel"))
     row_pal1 = ttk.Frame(f_ap, style="CfgCard.TFrame")
     row_pal1.grid(row=2, column=0, sticky="ew", pady=2)
     row_pal2 = ttk.Frame(f_ap, style="CfgCard.TFrame")
@@ -756,10 +1299,9 @@ def abrir_configuracoes(parent=None):
     row_font = ttk.Frame(f_ap, style="CfgCard.TFrame")
     row_font.grid(row=13, column=0, sticky="ew", pady=(12, 0))
     ttk.Label(row_font, text="Tamanho da fonte", style="CfgCard.TLabel").pack(side="left", padx=(0, 12))
-    font_var = tk.StringVar(value=str(cfg.get("font_size", 14)))
     ttk.Spinbox(row_font, textvariable=font_var, from_=10, to=24, width=6, style="Cfg.TSpinbox").pack(side="left")
 
-    # --- Seção: Áudio (tk.LabelFrame: tk.Button/Listbox dentro de ttk.LabelFrame some no Windows) ---
+    # ========= Aba Áudio =========
     f_aud = tk.LabelFrame(
         tab_aud,
         text="  Áudio  ",
@@ -776,7 +1318,6 @@ def abrir_configuracoes(parent=None):
     f_aud.columnconfigure(0, weight=1)
     f_aud.rowconfigure(4, weight=1)
 
-    audio_mode_var = tk.StringVar(value=cfg.get("audio_mode", "random"))
     ttk.Radiobutton(f_aud, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", style="Cfg.TRadiobutton").grid(row=0, column=0, sticky="w", pady=2)
     ttk.Radiobutton(f_aud, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", style="Cfg.TRadiobutton").grid(row=1, column=0, sticky="w", pady=2)
 
@@ -784,12 +1325,6 @@ def abrir_configuracoes(parent=None):
     vol_frame.grid(row=2, column=0, sticky="ew", pady=(10, 4))
     vol_frame.columnconfigure(0, weight=1)
     tk.Label(vol_frame, text="Volume das notificações", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10)).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
-    _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
-    try:
-        _vol_saved = max(0, min(100, int(round(float(_vol_saved)))))
-    except (TypeError, ValueError):
-        _vol_saved = 100
-    vol_var = tk.DoubleVar(value=_vol_saved)
     vol_pct_label = tk.Label(vol_frame, text=f"{_vol_saved}%", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10), width=6)
     vol_pct_label.grid(row=1, column=1, sticky="e", padx=(10, 0))
 
@@ -946,11 +1481,57 @@ def abrir_configuracoes(parent=None):
         except Exception as e:
             messagebox.showerror("Pasta", str(e))
 
+    def remover_audios_selecionados():
+        sel = lb.curselection()
+        if not sel:
+            messagebox.showinfo("Áudio", "Selecione um ou mais arquivos na lista para remover.")
+            return
+
+        nomes = [lb.get(i) for i in sel]
+        if len(nomes) == 1:
+            msg_confirm = f'Deseja remover o arquivo "{nomes[0]}" da pasta audios?'
+        else:
+            preview = ", ".join(nomes[:4])
+            if len(nomes) > 4:
+                preview += ", ..."
+            msg_confirm = (
+                f"Deseja remover {len(nomes)} arquivos da pasta audios?\n\n"
+                f"Selecionados: {preview}"
+            )
+
+        if not messagebox.askyesno("Confirmar remoção", msg_confirm):
+            return
+
+        removidos = 0
+        falhas = []
+        pasta = pasta_audios()
+        for nome in nomes:
+            path = os.path.join(pasta, nome)
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+                    removidos += 1
+            except Exception as e:
+                falhas.append(f"{nome}: {e}")
+
+        recarregar_lista_audios()
+        if falhas:
+            detalhes = "\n".join(falhas[:6])
+            if len(falhas) > 6:
+                detalhes += "\n..."
+            messagebox.showwarning(
+                "Áudio",
+                f"Removidos: {removidos}\nFalhas: {len(falhas)}\n\n{detalhes}",
+            )
+        else:
+            messagebox.showinfo("Áudio", f"Arquivos removidos: {removidos}.")
+
     aud_actions = tk.Frame(f_aud, bg=CFG_CARD)
     aud_actions.grid(row=5, column=0, sticky="ew", pady=(10, 4))
     _cfg_btn_sec(aud_actions, text="▶ Ouvir seleção", command=reproduzir_selecionado).pack(side="left", padx=(0, 8), pady=2)
     _cfg_btn_sec(aud_actions, text="■ Parar som", command=parar_som).pack(side="left", padx=8, pady=2)
     _cfg_btn_sec(aud_actions, text="+ Adicionar arquivos…", command=adicionar_audios_explorer).pack(side="left", padx=8, pady=2)
+    _cfg_btn_sec(aud_actions, text="🗑 Remover selecionado(s)", command=remover_audios_selecionados).pack(side="left", padx=8, pady=2)
     _cfg_btn_sec(aud_actions, text="Abrir pasta no Explorer", command=abrir_pasta_audios_cmd).pack(side="left", padx=8, pady=2)
 
     tk.Label(
@@ -963,64 +1544,84 @@ def abrir_configuracoes(parent=None):
 
     tk.Label(f_aud, text="Pasta: " + pasta_audios(), bg=CFG_CARD, fg=CFG_SUB, font=("Segoe UI", 9)).grid(row=7, column=0, sticky="w", pady=(6, 0))
 
-    # Rodapé: linha fixa no grid (row 2) para não ser coberto pelo Notebook com expand
+    # ========= Aba Extras =========
+    f_extra = ttk.LabelFrame(tab_extra, text="  Personalização divertida  ", padding=16, style="CfgCard.TLabelframe")
+    f_extra.pack(fill="x")
+    ttk.Radiobutton(f_extra, text="Sem efeito extra", variable=fun_mode_var, value="none", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
+    ttk.Radiobutton(f_extra, text="Brilhos (✨)", variable=fun_mode_var, value="sparkles", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
+    ttk.Radiobutton(f_extra, text="Tema água (💧🫧🌊)", variable=fun_mode_var, value="water", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
+    ttk.Radiobutton(f_extra, text="Modo festa (🎉🥳)", variable=fun_mode_var, value="party", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
+    ttk.Label(
+        f_extra,
+        text="Aplica um toque visual na mensagem padrão da notificação.",
+        style="Cfg.Subtle.TLabel",
+    ).pack(anchor="w", pady=(8, 0))
+
+    def atualizar_estado_controles_notificacao(*_a):
+        gif_on = visual_mode_var.get() == "gif"
+        state = "normal" if gif_on else "disabled"
+        gif_entry.configure(state=state)
+        try:
+            for child in row_gif_zoom.winfo_children():
+                child.configure(state=state)
+        except Exception:
+            pass
+        for child in row_gif_fit.winfo_children():
+            try:
+                child.configure(state=state)
+            except Exception:
+                pass
+        for child in gif_actions.winfo_children():
+            child.configure(state=state)
+        lb_hist.configure(state=state)
+        if gif_on and gif_mode_var.get() == "random_history":
+            gif_entry.configure(state="disabled")
+        elif gif_on:
+            gif_entry.configure(state="normal")
+        else:
+            gif_entry.configure(state="disabled")
+
+    visual_mode_var.trace_add("write", atualizar_estado_controles_notificacao)
+    gif_mode_var.trace_add("write", atualizar_estado_controles_notificacao)
+    atualizar_estado_controles_notificacao()
+
+    # Rodapé fixo
     btn_frame = tk.Frame(main, bg=CFG_FUNDO, highlightthickness=1, highlightbackground=CFG_BORDER)
 
     def testar():
-        def _mostrar_popup_teste():
-            try:
-                nv = int(round(float(vol_var.get())))
-            except (ValueError, tk.TclError):
-                nv = CONFIG_PADRAO["notification_volume"]
-            nv = max(0, min(100, nv))
-            cfg_teste = {
-                "message": msg_var.get().strip() or "Teste! 💧",
-                "random_colors": random_colors_var.get(),
-                "colors": PALETAS.get(palette_var.get(), PALETAS["Pastel"]),
-                "popup_animation": anim_var.get(),
-                "popup_position": pos_var.get(),
-                "font_size": int(font_var.get() or 14),
-                "stop_audio_on_close": stop_audio_var.get(),
-                "popup_duration_seconds": 4,
-                "audio_mode": audio_mode_var.get(),
-                "selected_audios": [lb.get(i) for i in lb.curselection()],
-                "notification_volume": nv,
-            }
-            cfg_anim = _resolver_posicao_popup(cfg_teste)
-            tocar_som(cfg_teste)
+        try:
+            nv = int(round(float(vol_var.get())))
+        except (ValueError, tk.TclError):
+            nv = CONFIG_PADRAO["notification_volume"]
+        nv = max(0, min(100, nv))
+        try:
+            gif_zoom_pct = int(round(float(gif_zoom_var.get())))
+        except (ValueError, tk.TclError):
+            gif_zoom_pct = 140
+        gif_zoom_pct = max(100, min(300, gif_zoom_pct))
 
-            win = tk.Toplevel(root)
-            win.overrideredirect(True)
-            win.attributes("-topmost", True)
-            win.configure(bg="white")
-            w, h = win.winfo_screenwidth(), win.winfo_screenheight()
-            popup_w, popup_h = 340, 130
-            x1, y1 = _pos_inicial(cfg_anim, w, h, popup_w, popup_h)
-            win.geometry(f"{popup_w}x{popup_h}+{x1}+{y1}")
-
-            if cfg_teste.get("random_colors", True):
-                cor = random.choice(cfg_teste.get("colors", PALETAS["Pastel"]))
-            else:
-                cores = cfg_teste.get("colors", PALETAS["Pastel"])
-                cor = cores[0] if cores else "#87CEEB"
-
-            lbl = tk.Label(win, text=cfg_teste["message"], font=("Segoe UI", cfg_teste["font_size"], "bold"),
-                          bg=cor, fg="#1a1a2e", wraplength=300, cursor="hand2", relief="flat", padx=16, pady=16)
-            lbl.pack(expand=True, fill="both")
-
-            def fechar():
-                if cfg_teste.get("stop_audio_on_close", True):
-                    parar_som()
-                win.destroy()
-
-            lbl.bind("<Button-1>", lambda e: fechar())
-            duracao_ms = 4000
-
-            def agendar_fechar():
-                win.after(duracao_ms, fechar)
-
-            _animar_entrada(win, cfg_anim, x1, y1, agendar_fechar)
-        root.after(100, _mostrar_popup_teste)
+        cfg_teste = {
+            "message": msg_var.get().strip() or "Teste de notificação! 🔔",
+            "random_colors": random_colors_var.get(),
+            "colors": PALETAS.get(palette_var.get(), PALETAS["Pastel"]),
+            "popup_animation": anim_var.get(),
+            "popup_position": pos_var.get(),
+            "font_size": int(font_var.get() or 14),
+            "stop_audio_on_close": stop_audio_var.get(),
+            "popup_duration_seconds": 4,
+            "audio_mode": audio_mode_var.get(),
+            "selected_audios": [lb.get(i) for i in lb.curselection()],
+            "notification_volume": nv,
+            "visual_mode": visual_mode_var.get(),
+            "gif_path": gif_path_var.get().strip(),
+            "gif_mode": gif_mode_var.get(),
+            "gif_fit_mode": gif_fit_mode_var.get(),
+            "gif_fullscreen_zoom_percent": gif_zoom_pct,
+            "gif_history": normalizar_historico_gifs(gif_history),
+            "fullscreen_notification": fullscreen_var.get(),
+            "fun_mode": fun_mode_var.get(),
+        }
+        root.after(100, lambda: mostrar_popup(parent=root, cfg_override=cfg_teste))
 
     def salvar():
         try:
@@ -1030,6 +1631,35 @@ def abrir_configuracoes(parent=None):
         except ValueError:
             messagebox.showerror("Erro", "Preencha números válidos em intervalo, duração e fonte.")
             return
+
+        visual_mode = visual_mode_var.get()
+        gif_mode = gif_mode_var.get()
+        try:
+            gif_zoom_pct = int(round(float(gif_zoom_var.get())))
+        except (ValueError, tk.TclError):
+            gif_zoom_pct = 140
+        gif_zoom_pct = max(100, min(300, gif_zoom_pct))
+        gif_path = os.path.normpath(gif_path_var.get().strip()) if gif_path_var.get().strip() else ""
+        hist_normalizado = normalizar_historico_gifs(gif_history)
+        if gif_path:
+            hist_normalizado = normalizar_historico_gifs(hist_normalizado + [gif_path])
+
+        if visual_mode == "gif":
+            if gif_mode == "single":
+                if not gif_path:
+                    messagebox.showerror("Erro", "Selecione um GIF para usar no modo GIF fixo.")
+                    return
+                if not os.path.isfile(gif_path):
+                    messagebox.showerror("Erro", "O GIF selecionado não foi encontrado.")
+                    return
+            if gif_mode == "random_history":
+                validos = [p for p in hist_normalizado if os.path.isfile(p)]
+                if not validos:
+                    messagebox.showerror("Erro", "Adicione pelo menos 1 GIF válido no histórico para usar o modo aleatório.")
+                    return
+            if gif_path and not os.path.isfile(gif_path):
+                messagebox.showerror("Erro", "O GIF selecionado não foi encontrado.")
+                return
 
         sel_idx = lb.curselection()
         selected = [lb.get(i) for i in sel_idx]
@@ -1044,13 +1674,21 @@ def abrir_configuracoes(parent=None):
             "message": msg_var.get().strip() or CONFIG_PADRAO["message"],
             "interval_minutes": max(1, min(120, interval)),
             "popup_duration_seconds": max(3, min(60, duration)),
+            "fullscreen_notification": fullscreen_var.get(),
             "stop_audio_on_close": stop_audio_var.get(),
+            "visual_mode": visual_mode,
+            "gif_mode": gif_mode,
+            "gif_fit_mode": gif_fit_mode_var.get(),
+            "gif_fullscreen_zoom_percent": gif_zoom_pct,
+            "gif_path": gif_path,
+            "gif_history": hist_normalizado,
             "random_colors": random_colors_var.get(),
             "color_palette": palette_var.get(),
             "colors": PALETAS.get(palette_var.get(), PALETAS["Pastel"]).copy(),
             "popup_animation": anim_var.get(),
             "popup_position": pos_var.get(),
             "font_size": max(10, min(24, fs)),
+            "fun_mode": fun_mode_var.get(),
             "audio_mode": audio_mode_var.get(),
             "selected_audios": selected,
             "notification_volume": vol_pct,
@@ -1110,14 +1748,14 @@ def janela_app():
 
     tk.Label(
         card,
-        text=cfg.get("control_window_status", "Water Popup ativo"),
+        text=cfg.get("control_window_status", "Notificações ativas"),
         font=("Segoe UI", 14, "bold"),
         fg=COR_TEXTO,
         bg=COR_CARD,
     ).pack(anchor="w")
     tk.Label(
         card,
-        text=cfg.get("control_window_hint", "Feche esta janela para encerrar os lembretes"),
+        text=cfg.get("control_window_hint", "Feche esta janela para encerrar as notificações"),
         font=("Segoe UI", 9),
         fg=COR_SUBTEXTO,
         bg=COR_CARD,
