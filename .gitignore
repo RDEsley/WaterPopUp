@@ -18,6 +18,8 @@ ENV/
 # PyInstaller / empacotamento
 build/
 dist/
+release/
+waterpopup-win64-*.zip
 *.spec.bak
 
 # Testes e cobertura

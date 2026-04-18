@@ -9,26 +9,56 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Status](https://img.shields.io/badge/Status-Finalizado-25D366?style=for-the-badge)]()
+[![Releases](https://img.shields.io/badge/Download-Releases-0969da?style=for-the-badge&logo=github)](https://github.com/RDEsley/WaterPopUp/releases)
+[![Última Versão](https://img.shields.io/github/v/release/RDEsley/WaterPopUp?style=for-the-badge&label=%C3%9Altima%20vers%C3%A3o)](https://github.com/RDEsley/WaterPopUp/releases/latest)
 
 </div>
 
 ---
 
+## 📚 Sumário
+
+- [Sobre o Projeto](#sobre)
+- [Recursos](#recursos)
+- [Tecnologias Utilizadas](#tecnologias)
+- [Instalação e Uso](#instalacao)
+- [Configurações](#configuracoes)
+- [Estrutura do Projeto](#estrutura)
+- [Licença](#licenca)
+- [Desenvolvedor](#desenvolvedor)
+
+---
+
+<a id="sobre"></a>
 ## 📌 Sobre o Projeto
 
 O **Water-Popup** é um app de notificações personalizadas. Apesar do nome, ele não é limitado a hidratação: você pode configurar mensagens, visual, GIFs, áudio e frequência para qualquer tipo de lembrete pessoal ou profissional.
 
 > 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows. Ideal para iniciar junto com o PC.
 
+### ⚡ Teste rápido (recomendado)
+
+Para testar sem configurar ambiente Python, baixe o executável na página de Releases:
+
+👉 **[Baixar Water Popup (.exe)](https://github.com/RDEsley/WaterPopUp/releases)**
+
+👉 **[Baixar última versão (releases/latest)](https://github.com/RDEsley/WaterPopUp/releases/latest)**
+
+Depois:
+1. Abra a release mais recente.
+2. Baixe o arquivo `.zip` ou `.exe`.
+3. Extraia (se for `.zip`) e execute `waterpopup.exe`.
+
 ---
 
+<a id="recursos"></a>
 ## ✨ Recursos
 
 | Funcionalidade | Descrição |
 |---|---|
 | 🖼️ **Popups Dinâmicos** | Notificações visuais com cores aleatórias ou paletas temáticas (Pastel, Vibrante, Natureza, Escuro, Clássico). |
 | 🎬 **Animações** | Entrada com vários efeitos: aleatório, deslizar (horizontal ou vertical), zoom (escala), bounce, elástico, cair, fade ou nenhum. |
-| 📍 **Posição Configurável** | Canto fixo (superior/inferior × esquerdo/direito) ou **aleatório** a cada lembrete. |
+| 📍 **Posição Configurável** | Canto fixo (superior/inferior × esquerdo/direito) ou **aleatório** a cada notificação. |
 | 🔊 **Feedback Sonoro** | Reprodução de arquivos (`.mp3`, `.wav`, `.ogg`) — aleatório ou seleção personalizada. |
 | ⏹️ **Áudio Inteligente** | Opção para parar o áudio quando o popup fechar (ideal para músicas longas). |
 | ✏️ **Mensagem Personalizada** | Defina sua própria mensagem de notificação. |
@@ -39,6 +69,7 @@ O **Water-Popup** é um app de notificações personalizadas. Apesar do nome, el
 
 ---
 
+<a id="tecnologias"></a>
 ## 🛠️ Tecnologias Utilizadas
 
 <div align="center">
@@ -54,7 +85,10 @@ O **Water-Popup** é um app de notificações personalizadas. Apesar do nome, el
 
 ---
 
+<a id="instalacao"></a>
 ## 🚀 Instalação e Uso
+
+> Se seu objetivo é apenas testar/usar o app, prefira baixar em **[Releases](https://github.com/RDEsley/WaterPopUp/releases)**.
 
 ### Dependências
 
@@ -107,6 +141,30 @@ O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache d
 
 **Windows — “Permission denied” / `update_exe_pe_checksum`:** o `waterpopup.exe` não pode estar em uso. Feche o app (e atalhos em segundo plano) ou use **`build-exe.bat`** / **`build-exe.ps1`**, que encerram processos `waterpopup` e em seguida rodam o PyInstaller. Se a pasta estiver no OneDrive, aguarde a sincronização ou exclua `dist` da nuvem para reduzir bloqueios.
 
+### GitHub Releases (seguranca e verificacao)
+
+Use os artefatos prontos do projeto:
+
+- `release-template.md` -> texto base da release (inclui secao de seguranca/verificacao)
+- `generate-release-assets.ps1` -> gera pacote e `SHA256.txt`
+
+Exemplo:
+
+```powershell
+# 1) Gere o executavel
+.\build-exe.bat
+
+# 2) Gere assets da release + hash
+.\generate-release-assets.ps1 -Version v1.0.0
+```
+
+Arquivos gerados:
+
+- pasta `release/` com `waterpopup.exe` e `SHA256.txt`
+- `waterpopup-win64-v1.0.0.zip` na raiz
+
+No GitHub Releases, anexe o `.zip` e o `SHA256.txt`.
+
 ### Usar o .exe
 
 | Ação | Comando |
@@ -122,6 +180,7 @@ O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache d
 
 ---
 
+<a id="configuracoes"></a>
 ## ⚙️ Configurações
 
 O app grava preferências em `config.json` (ignorado no Git). Para começar a partir de um modelo, copie `config.example.json` para `config.json` e ajuste.
@@ -136,7 +195,7 @@ Execute com `--config` para abrir a interface de personalização:
 - **Posição** — Aleatório (incluindo centro) ou posição fixa (cantos + centro)
 - **Visual** — Notificação padrão (texto) ou GIF animado
 - **GIFs** — Seleção pelo explorador, histórico salvo e opção de GIF aleatório a cada notificação
-- **Tela cheia** — Opção para cobrir toda a tela durante o lembrete (inclusive no modo GIF)
+- **Tela cheia** — Opção para cobrir toda a tela durante a notificação (inclusive no modo GIF)
 - **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
 - **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
 - **Animação** — Aleatória, Deslizar, Vertical, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
@@ -152,6 +211,7 @@ Execute com `--config` para abrir a interface de personalização:
 
 ---
 
+<a id="estrutura"></a>
 ## 📁 Estrutura do Projeto
 
 ```
@@ -170,12 +230,14 @@ WaterPopUp/
 
 ---
 
+<a id="licenca"></a>
 ## ⚖️ Licença
 
 Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
 
+<a id="desenvolvedor"></a>
 ## 👨‍💻 Desenvolvedor
 
 <div align="center">
