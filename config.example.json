@@ -1,15 +1,17 @@
 {
-  "message": "Hora da sua notificação personalizada! 🔔",
+  "message": "Sua notificação personalizada! 🔔",
   "interval_minutes": 10,
   "popup_duration_seconds": 5,
   "fullscreen_notification": false,
   "stop_audio_on_close": true,
   "visual_mode": "notification",
-  "gif_mode": "single",
+  "gif_mode": "random_history",
   "gif_fit_mode": "contain",
-  "gif_fullscreen_zoom_percent": 140,
-  "gif_path": "",
-  "gif_history": [],
+  "gif_fullscreen_zoom_percent": 100,
+  "gif_path": "c:\\Users\\Richard\\Projetos - Disco Local\\WaterPopUp\\gifs\\violet2.gif",
+  "gif_history": [
+    "c:\\Users\\Richard\\Projetos - Disco Local\\WaterPopUp\\gifs\\violet2.gif"
+  ],
   "random_colors": true,
   "color_palette": "Pastel",
   "colors": [
@@ -35,8 +37,5 @@
   "fun_mode": "none",
   "audio_mode": "random",
   "selected_audios": [],
-  "notification_volume": 100,
-  "control_window_title": "🔔 Water Popup",
-  "control_window_status": "Notificações ativas",
-  "control_window_hint": "Feche esta janela para encerrar as notificações"
+  "notification_volume": 50
 }
