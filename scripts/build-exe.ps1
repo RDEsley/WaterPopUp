@@ -1,7 +1,7 @@
 # Gera dist\waterpopup.exe. Encerra instâncias em execução para o Windows liberar o arquivo
 # (evita PermissionError em update_exe_pe_checksum / os.remove).
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+Set-Location (Join-Path $PSScriptRoot "..")
 
 $procs = @(Get-Process -Name "waterpopup" -ErrorAction SilentlyContinue)
 if ($procs.Count -gt 0) {

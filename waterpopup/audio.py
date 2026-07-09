@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import pygame
 
-from config import CONFIG_PADRAO, caminho_recurso, pasta_base, carregar_config
+from .config import CONFIG_PADRAO, caminho_recurso, pasta_base, carregar_config
 
 pygame.mixer.init()
 

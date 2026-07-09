@@ -4,7 +4,7 @@ import random
 from typing import Any, Callable, Dict, Optional, Tuple
 import tkinter as tk
 
-from config import CANTOS_POPUP, POSICOES_POPUP, ANIMACOES
+from .config import POSICOES_POPUP, ANIMACOES
 
 def resolver_posicao_popup(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Resolve 'random' para um canto concreto (cada chamada pode variar)."""
@@ -59,7 +59,7 @@ def animar_entrada(root, cfg: Dict[str, Any], x1: int, y1: int, callback: Option
     popup_w, popup_h = 340, 130
     steps = 18
     delay_ms = 22
-    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+    h = root.winfo_screenheight()
     margin = 15
 
     def done():

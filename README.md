@@ -112,10 +112,10 @@ cd WaterPopUp
 pip install -r requirements.txt
 
 # Execute as notificações (popup no intervalo configurado)
-python waterpopup.py
+python run.py
 
 # Abrir configurações
-python waterpopup.py --config
+python run.py --config
 ```
 
 ### Linha de comando (Python e `.exe`)
@@ -143,23 +143,20 @@ pyinstaller waterpopup.spec
 
 O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache do PyInstaller): `pyinstaller waterpopup.spec --clean`.
 
-**Windows — “Permission denied” / `update_exe_pe_checksum`:** o `waterpopup.exe` não pode estar em uso. Feche o app (e atalhos em segundo plano) ou use **`build-exe.bat`** / **`build-exe.ps1`**, que encerram processos `waterpopup` e em seguida rodam o PyInstaller. Se a pasta estiver no OneDrive, aguarde a sincronização ou exclua `dist` da nuvem para reduzir bloqueios.
+**Windows — “Permission denied” / `update_exe_pe_checksum`:** o `waterpopup.exe` não pode estar em uso. Feche o app (e atalhos em segundo plano) ou use **`scripts\build-exe.bat`** / **`scripts\build-exe.ps1`**, que encerram processos `waterpopup` e em seguida rodam o PyInstaller. Se a pasta estiver no OneDrive, aguarde a sincronização ou exclua `dist` da nuvem para reduzir bloqueios.
 
 ### GitHub Releases (seguranca e verificacao)
 
-Use os artefatos prontos do projeto:
-
-- `release-template.md` -> texto base da release (inclui secao de seguranca/verificacao)
-- `generate-release-assets.ps1` -> gera pacote e `SHA256.txt`
+Use o script pronto do projeto (pasta `scripts/`) para empacotar e gerar o hash da release:
 
 Exemplo:
 
 ```powershell
 # 1) Gere o executavel
-.\build-exe.bat
+.\scripts\build-exe.bat
 
 # 2) Gere assets da release + hash
-.\generate-release-assets.ps1 -Version v1.0.0
+.\scripts\generate-release-assets.ps1 -Version v1.0.0
 ```
 
 Arquivos gerados:
@@ -191,7 +188,7 @@ O app grava preferências em `config.json` (ignorado no Git). Para começar a pa
 
 **Estrutura do arquivo:** o `config.json` é gravado em seções (`general`, `message`, `visual`, `position`, `colors`, `animation`, `audio`, `gifs`, `window`) com valores validados (intervalos, tipos e faixas aceitáveis). Um `config.json` no formato antigo (versão anterior, com chaves soltas) é migrado automaticamente na primeira execução, com backup do arquivo anterior salvo como `config.json.bak`. Se o arquivo estiver corrompido/ilegível, o app restaura os valores padrão automaticamente e também guarda um backup do arquivo problemático. Veja `config.example.json` para um exemplo completo.
 
-**Onde o arquivo é salvo:** por padrão, na mesma pasta do `waterpopup.py` ou do `.exe` **se essa pasta for gravável**. Se não for (ex.: `Program Files`), usa-se `%AppData%\WaterPopUp\config.json`. Você pode forçar o caminho com a variável `WATERPOPUP_CONFIG_PATH` ou com `--config-path`.
+**Onde o arquivo é salvo:** por padrão, na pasta raiz do projeto (onde fica `run.py`) ou do `.exe` **se essa pasta for gravável**. Se não for (ex.: `Program Files`), usa-se `%AppData%\WaterPopUp\config.json`. Você pode forçar o caminho com a variável `WATERPOPUP_CONFIG_PATH` ou com `--config-path`.
 
 Execute com `--config` para abrir a interface de personalização:
 
@@ -244,22 +241,27 @@ Não há configuração adicional: basta ativar "Cobrir toda a tela ao exibir o 
 
 ```
 WaterPopUp/
-├── waterpopup.py              # Ponto de entrada fino (chama main.main())
-├── main.py                    # CLI, janela principal e agendamento dos lembretes
-├── config.py                  # Paths, esquema/validação (dataclasses) e migração do config.json
-├── popup.py                   # Janelas de notificação (texto/GIF, multi-monitor)
-├── gui_config.py               # Janela de configurações
-├── animations.py               # Posicionamento e animações de entrada do popup
-├── audio.py                    # Reprodução de áudio (pygame)
-├── monitors.py                 # Detecção de monitores e DPI awareness
-├── waterpopup.spec            # Configuração PyInstaller
-├── requirements.txt           # Dependências Python
-├── config.example.json        # Modelo de config.json (versionado)
-├── Configurar Water Popup.bat # Atalho para abrir configurações
-├── audios/                    # Arquivos de áudio (.mp3, .wav, .ogg)
-├── config.json                # Configurações (gerado automaticamente; não versionado)
-├── .gitignore                 # Artefatos locais e pastas de build
-├── LICENSE                    # Licença MIT
+├── run.py                      # Ponto de entrada fino (chama waterpopup.main.main())
+├── waterpopup/                 # Pacote com a aplicação
+│   ├── main.py                 # CLI, janela principal e agendamento dos lembretes
+│   ├── config.py                # Paths, esquema/validação (dataclasses) e migração do config.json
+│   ├── popup.py                 # Janelas de notificação (texto/GIF, multi-monitor)
+│   ├── gui_config.py            # Janela de configurações
+│   ├── animations.py            # Posicionamento e animações de entrada do popup
+│   ├── audio.py                 # Reprodução de áudio (pygame)
+│   ├── monitors.py              # Detecção de monitores e DPI awareness
+│   └── __init__.py
+├── scripts/                    # Scripts de build e atalhos
+│   ├── build-exe.bat / .ps1     # Geram dist\waterpopup.exe (PyInstaller)
+│   ├── generate-release-assets.ps1  # Empacota release + SHA256.txt
+│   └── Configurar Water Popup.bat   # Atalho para abrir configurações
+├── waterpopup.spec             # Configuração PyInstaller
+├── requirements.txt            # Dependências Python
+├── config.example.json         # Modelo de config.json (versionado)
+├── audios/                     # Arquivos de áudio (.mp3, .wav, .ogg)
+├── config.json                 # Configurações (gerado automaticamente; não versionado)
+├── .gitignore                  # Artefatos locais e pastas de build
+├── LICENSE                     # Licença MIT
 └── README.md
 ```
 

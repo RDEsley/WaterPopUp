@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['waterpopup.py'],
+    ['run.py'],
     pathex=[],
     binaries=[],
     datas=[('audios', 'audios')],

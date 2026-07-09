@@ -9,7 +9,7 @@ import argparse
 from typing import Optional
 import tkinter as tk
 
-from config import (
+from .config import (
     carregar_config,
     salvar_config,
     caminho_config,
@@ -17,9 +17,9 @@ from config import (
     aninhar_flat,
     MAPA_NESTED_PARA_FLAT,
 )
-from monitors import habilitar_dpi_awareness
-from popup import mostrar_popup
-from gui_config import abrir_configuracoes
+from .monitors import habilitar_dpi_awareness
+from .popup import mostrar_popup
+from .gui_config import abrir_configuracoes
 
 # ============ TEMA DA JANELA PRINCIPAL (escuro) ============
 

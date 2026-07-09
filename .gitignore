@@ -33,8 +33,10 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# Config (personalizado por usuário)
+# Config (personalizado por usuário; backups gerados automaticamente na migração/recuperação)
 config.json
+config.json.bak
+config.json.*.bak
 
 # IDE
 .idea/
@@ -52,3 +54,9 @@ Desktop.ini
 *.log
 *.tmp
 *.temp
+
+# Claude
+claude
+.claude
+skills
+SKILL.md

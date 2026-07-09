@@ -1,12 +1,13 @@
 """Janela gráfica de configurações (abas Geral/Notificação/Aparência/Áudio/Extras)."""
 
 import os
+import shutil
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from config import carregar_config, salvar_config, CONFIG_PADRAO, PALETAS, POSICOES_POPUP, CANTOS_POPUP
-from audio import listar_audios, tocar_arquivo_audio, parar_som, pasta_audios, abrir_pasta_no_explorador
-from popup import normalizar_historico_gifs, importar_gif_para_app, mostrar_popup
+from .config import carregar_config, salvar_config, CONFIG_PADRAO, PALETAS, POSICOES_POPUP, CANTOS_POPUP
+from .audio import listar_audios, tocar_arquivo_audio, parar_som, pasta_audios, abrir_pasta_no_explorador
+from .popup import normalizar_historico_gifs, importar_gif_para_app, mostrar_popup
 
 # Tema da janela de configuração (azul claro, legível)
 CFG_FUNDO = "#dce6f5"

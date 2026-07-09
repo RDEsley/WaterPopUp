@@ -25,10 +25,10 @@ if PIL_DISPONIVEL:
 else:
     PIL_RESAMPLING_LANCZOS = None
 
-from config import PALETAS, CONFIG_PADRAO, pasta_base, pasta_config, carregar_config
-from monitors import listar_monitores
-from animations import resolver_posicao_popup, pos_inicial, animar_entrada
-from audio import tocar_som, parar_som
+from .config import PALETAS, CONFIG_PADRAO, pasta_base, pasta_config, carregar_config
+from .monitors import listar_monitores
+from .animations import resolver_posicao_popup, pos_inicial, animar_entrada
+from .audio import tocar_som, parar_som
 
 # ============ GIFs: pasta, importação e histórico ============
 

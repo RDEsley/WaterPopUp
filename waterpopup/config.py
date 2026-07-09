@@ -23,7 +23,9 @@ from tkinter import messagebox
 def pasta_base() -> str:
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.abspath(__file__))
+    # Este arquivo vive em <projeto>/waterpopup/config.py — sobe dois níveis
+    # (o arquivo em si e a pasta do pacote) para achar a raiz do projeto.
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _config_path_override: Optional[str] = None
 
@@ -59,7 +61,6 @@ def pasta_config() -> str:
     return fallback
 
 def caminho_config() -> str:
-    global _config_path_override
     if _config_path_override:
         return _config_path_override
     env_path = os.environ.get("WATERPOPUP_CONFIG_PATH")

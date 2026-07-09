@@ -4,14 +4,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+$ProjectRoot = Join-Path $PSScriptRoot ".."
+Set-Location $ProjectRoot
 
-$distExe = Join-Path $PSScriptRoot "dist\waterpopup.exe"
+$distExe = Join-Path $ProjectRoot "dist\waterpopup.exe"
 if (-not (Test-Path $distExe)) {
-    throw "Arquivo nao encontrado: $distExe`nGere o executavel antes (ex.: build-exe.bat)."
+    throw "Arquivo nao encontrado: $distExe`nGere o executavel antes (ex.: scripts\build-exe.bat)."
 }
 
-$releaseDir = Join-Path $PSScriptRoot "release"
+$releaseDir = Join-Path $ProjectRoot "release"
 if (Test-Path $releaseDir) {
     Remove-Item $releaseDir -Recurse -Force
 }
@@ -20,7 +21,7 @@ New-Item -ItemType Directory -Path $releaseDir | Out-Null
 $releaseExe = Join-Path $releaseDir "waterpopup.exe"
 Copy-Item $distExe $releaseExe -Force
 
-$audiosSrc = Join-Path $PSScriptRoot "audios"
+$audiosSrc = Join-Path $ProjectRoot "audios"
 if (Test-Path $audiosSrc) {
     Copy-Item $audiosSrc (Join-Path $releaseDir "audios") -Recurse -Force
 }
@@ -33,7 +34,7 @@ $exeHash = (Get-FileHash $releaseExe -Algorithm SHA256).Hash
 
 if ($IncludeZip) {
     $zipName = "waterpopup-win64-$Version.zip"
-    $zipPath = Join-Path $PSScriptRoot $zipName
+    $zipPath = Join-Path $ProjectRoot $zipName
     if (Test-Path $zipPath) {
         Remove-Item $zipPath -Force
     }

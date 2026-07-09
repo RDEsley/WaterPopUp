@@ -3,7 +3,7 @@
 import sys
 import ctypes
 import logging
-from typing import List, Optional
+from typing import List
 
 try:
     from screeninfo import get_monitors as _screeninfo_get_monitors
