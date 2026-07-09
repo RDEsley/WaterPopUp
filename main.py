@@ -215,7 +215,18 @@ def _parse_valor_set(s: str):
     except Exception:
         return raw
 
+def _reconfigurar_saida_utf8() -> None:
+    """Evita UnicodeEncodeError ao imprimir texto com emoji (mensagem, títulos)
+    em consoles Windows que não usam UTF-8 por padrão (ex.: cp1252/850)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
 def main() -> None:
+    _reconfigurar_saida_utf8()
+
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--config", "-c", action="store_true", help="Abrir janela de configurações")
     parser.add_argument("--set", action="append", default=[], help="Define config: chave=valor ou secao.campo=valor (pode repetir)")
