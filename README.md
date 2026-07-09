@@ -23,6 +23,7 @@
 - [Tecnologias Utilizadas](#tecnologias)
 - [Instalação e Uso](#instalacao)
 - [Configurações](#configuracoes)
+- [Multi-monitor](#multimonitor)
 - [Estrutura do Projeto](#estrutura)
 - [Licença](#licenca)
 - [Desenvolvedor](#desenvolvedor)
@@ -79,6 +80,8 @@ Depois:
 | 🐍 **Python 3.8+** | Core do sistema e lógica de automação |
 | 🎮 **Pygame** | Motor de áudio |
 | 🪟 **Tkinter** | Interface gráfica (popup e configurações) |
+| 🖼️ **Pillow** | Decodificação e redimensionamento de GIFs animados |
+| 🖥️ **screeninfo** | Detecção de monitores para o modo tela cheia multi-monitor |
 | 🧵 **Threading** | Gerenciamento de processos em background |
 
 </div>
@@ -123,10 +126,11 @@ python waterpopup.py --config
 | `--config` ou `-c` | Abre só a janela de configurações |
 | `--config-path CAMINHO` | Usa esse arquivo como `config.json` (sessão atual) |
 | `--print-config-path` | Imprime o caminho do `config.json` em uso e encerra |
-| `--print-config` | Imprime o JSON de configuração atual e encerra |
-| `--set chave=valor` | Atualiza uma ou mais chaves e grava (pode repetir). Ex.: `--set interval_minutes=15 --set stop_audio_on_close=false` |
+| `--print-config` | Imprime o JSON de configuração atual (estrutura aninhada) e encerra |
+| `--set secao.campo=valor` | Atualiza uma ou mais chaves e grava (pode repetir). Ex.: `--set general.interval_minutes=15 --set audio.stop_on_close=false` |
+| `--debug` | Ativa logs de depuração (nível DEBUG) no console |
 
-Valores em `--set`: números, `true`/`false`, ou JSON para listas/objetos (ex.: `selected_audios=["a.mp3"]`).
+Valores em `--set`: números, `true`/`false`, ou JSON para listas/objetos (ex.: `audio.selected=["a.mp3"]`). As chaves aceitam tanto o formato aninhado (`secao.campo`, recomendado) quanto as chaves antigas sem seção, por compatibilidade.
 
 Variável de ambiente **`WATERPOPUP_CONFIG_PATH`**: caminho absoluto do `config.json` (útil sem passar `--config-path` em cada execução).
 
@@ -185,6 +189,8 @@ No GitHub Releases, anexe o `.zip` e o `SHA256.txt`.
 
 O app grava preferências em `config.json` (ignorado no Git). Para começar a partir de um modelo, copie `config.example.json` para `config.json` e ajuste.
 
+**Estrutura do arquivo:** o `config.json` é gravado em seções (`general`, `message`, `visual`, `position`, `colors`, `animation`, `audio`, `gifs`, `window`) com valores validados (intervalos, tipos e faixas aceitáveis). Um `config.json` no formato antigo (versão anterior, com chaves soltas) é migrado automaticamente na primeira execução, com backup do arquivo anterior salvo como `config.json.bak`. Se o arquivo estiver corrompido/ilegível, o app restaura os valores padrão automaticamente e também guarda um backup do arquivo problemático. Veja `config.example.json` para um exemplo completo.
+
 **Onde o arquivo é salvo:** por padrão, na mesma pasta do `waterpopup.py` ou do `.exe` **se essa pasta for gravável**. Se não for (ex.: `Program Files`), usa-se `%AppData%\WaterPopUp\config.json`. Você pode forçar o caminho com a variável `WATERPOPUP_CONFIG_PATH` ou com `--config-path`.
 
 Execute com `--config` para abrir a interface de personalização:
@@ -195,7 +201,7 @@ Execute com `--config` para abrir a interface de personalização:
 - **Posição** — Aleatório (incluindo centro) ou posição fixa (cantos + centro)
 - **Visual** — Notificação padrão (texto) ou GIF animado
 - **GIFs** — Seleção pelo explorador, histórico salvo e opção de GIF aleatório a cada notificação
-- **Tela cheia** — Opção para cobrir toda a tela durante a notificação (inclusive no modo GIF)
+- **Tela cheia** — Opção para cobrir toda a tela durante a notificação (inclusive no modo GIF). Com 2 ou mais monitores conectados, cobre **todos** eles ao mesmo tempo (veja [Multi-monitor](#multimonitor))
 - **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
 - **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
 - **Animação** — Aleatória, Deslizar, Vertical, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
@@ -219,12 +225,33 @@ Execute com `--config` para abrir a interface de personalização:
 
 ---
 
+<a id="multimonitor"></a>
+## 🖥️🖥️ Multi-monitor
+
+Quando **Tela cheia** está ativa e o Windows detecta 2 ou mais monitores conectados, o Water-Popup cobre todos eles ao mesmo tempo:
+
+- Cada monitor recebe sua própria janela, posicionada exatamente na geometria daquele monitor (funciona com monitores de resoluções diferentes, sem distorcer o conteúdo).
+- O mesmo conteúdo (texto ou GIF) aparece em todas as telas, com o GIF **sincronizado** — mesmo frame, ao mesmo tempo, em todos os monitores.
+- Clicar em qualquer uma das janelas (ou aguardar a duração configurada) fecha todas juntas.
+- A detecção de monitores usa a biblioteca `screeninfo`. Se ela não estiver disponível ou a detecção falhar por algum motivo, o app cai automaticamente para o comportamento de 1 monitor, sem travar.
+
+Não há configuração adicional: basta ativar "Cobrir toda a tela ao exibir o lembrete" com os monitores conectados.
+
+---
+
 <a id="estrutura"></a>
 ## 📁 Estrutura do Projeto
 
 ```
 WaterPopUp/
-├── waterpopup.py              # Aplicação principal
+├── waterpopup.py              # Ponto de entrada fino (chama main.main())
+├── main.py                    # CLI, janela principal e agendamento dos lembretes
+├── config.py                  # Paths, esquema/validação (dataclasses) e migração do config.json
+├── popup.py                   # Janelas de notificação (texto/GIF, multi-monitor)
+├── gui_config.py               # Janela de configurações
+├── animations.py               # Posicionamento e animações de entrada do popup
+├── audio.py                    # Reprodução de áudio (pygame)
+├── monitors.py                 # Detecção de monitores e DPI awareness
 ├── waterpopup.spec            # Configuração PyInstaller
 ├── requirements.txt           # Dependências Python
 ├── config.example.json        # Modelo de config.json (versionado)
