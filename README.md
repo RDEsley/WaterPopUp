@@ -209,6 +209,14 @@ Execute com `--config` para abrir a interface de personalização:
 - **Com .exe:** Coloque a pasta `audios/` ao lado do executável para usar seus próprios arquivos.
 - **Com Python:** Use a pasta `audios/` na raiz do projeto.
 
+### GIFs recomendados para tela cheia
+
+- **Resolução mínima:** 1280x720 — abaixo disso o GIF fica borrado ao ser ampliado para preencher a tela.
+- **Proporção:** próxima de 16:9 (a mesma da maioria dos monitores) evita barras grandes de letterbox/pillarbox.
+- **Tamanho de arquivo:** até 10MB — arquivos maiores demoram mais para carregar na primeira exibição (as exibições seguintes usam cache em memória e ficam instantâneas).
+- **Onde encontrar:** bancos como Giphy ou Tenor, filtrando por GIFs de uso livre/licença aberta, ou GIFs de sua própria autoria.
+- O modo de ajuste (`gif_fit_mode`) controla como o GIF se encaixa na tela: **"contain"** (padrão) mostra o GIF inteiro com barras da cor do popup ao redor; **"cover"** preenche a tela cortando as bordas do GIF.
+
 ---
 
 <a id="estrutura"></a>

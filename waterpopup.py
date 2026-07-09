@@ -9,9 +9,12 @@ import sys
 import time
 import json
 import math
+import ctypes
+import logging
 import argparse
 import shutil
 import subprocess
+from collections import OrderedDict
 import tkinter as tk
 from tkinter import ttk, messagebox, font as tkfont, filedialog
 import pygame
@@ -23,6 +26,13 @@ try:
 except Exception:
     Image = ImageTk = ImageOps = None
     PIL_DISPONIVEL = False
+
+try:
+    from screeninfo import get_monitors as _screeninfo_get_monitors
+    SCREENINFO_DISPONIVEL = True
+except Exception:
+    _screeninfo_get_monitors = None
+    SCREENINFO_DISPONIVEL = False
 
 if PIL_DISPONIVEL:
     try:
@@ -304,6 +314,59 @@ def abrir_pasta_no_explorador(pasta):
     else:
         subprocess.run(["xdg-open", pasta], check=False)
 
+# ============ MONITORES (MULTI-MONITOR) ============
+
+class Monitor:
+    """Geometria de um monitor em coordenadas de tela (pixels físicos)."""
+
+    __slots__ = ("x", "y", "width", "height")
+
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+
+def habilitar_dpi_awareness():
+    """Alinha as coordenadas do Tk com as do Windows quando há monitores com
+    escalas de DPI diferentes. Sem isso, a geometria retornada pelo screeninfo
+    pode não bater com a que o Tk usa para posicionar janelas."""
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+
+def listar_monitores(root=None):
+    """Retorna a lista de monitores conectados (Monitor: x, y, width, height).
+
+    Usa screeninfo quando disponível. Se a lib não estiver instalada ou a
+    detecção falhar, cai graciosamente para um único monitor (o retângulo de
+    tela que o próprio Tk enxerga), preservando o comportamento anterior.
+    """
+    if SCREENINFO_DISPONIVEL:
+        try:
+            monitores = _screeninfo_get_monitors()
+            if monitores:
+                return [Monitor(m.x, m.y, m.width, m.height) for m in monitores]
+        except Exception as e:
+            logging.warning("Falha ao detectar monitores via screeninfo: %s", e)
+    else:
+        logging.warning("screeninfo não disponível; usando apenas o monitor primário.")
+
+    if root is not None:
+        try:
+            return [Monitor(0, 0, root.winfo_screenwidth(), root.winfo_screenheight())]
+        except Exception:
+            pass
+    return [Monitor(0, 0, 1920, 1080)]
+
 # ============ ANIMAÇÕES ============
 
 _CANTOS_POPUP = ("top-right", "top-left", "bottom-right", "bottom-left")
@@ -536,14 +599,45 @@ def _animar_entrada(root, cfg, x1, y1, callback=None):
 
 # ============ POPUP ============
 
-def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain", fullscreen_zoom=1.0):
+_CACHE_FRAMES_GIF = OrderedDict()
+_CACHE_FRAMES_GIF_MAX = 8
+
+def _tk_cor_para_rgb(widget, cor):
+    """Resolve uma cor do Tk (hex '#RRGGBB' ou nome como 'light pink') para uma
+    tupla RGB 0-255. O Pillow não entende nomes de cor do Tk, então usamos o
+    próprio Tk (winfo_rgb) pra resolver qualquer cor válida de forma genérica."""
+    try:
+        r, g, b = widget.winfo_rgb(cor)
+        return (r // 256, g // 256, b // 256)
+    except Exception:
+        return (0, 0, 0)
+
+def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain", fullscreen_zoom=1.0, cor_fundo=(0, 0, 0)):
     """
     Carrega GIF animado com Pillow para evitar artefatos visuais do tk.PhotoImage
     (borrões pretos / transparência) e reduzir risco de crash por memória.
+
+    Redimensiona mantendo a proporção original (LANCZOS). GIFs com muitos
+    frames são sub-amostrados (no máximo `max_frames` quadros) para manter o
+    carregamento rápido mesmo em arquivos grandes. Os frames já processados
+    (por caminho + tamanho + modo + zoom + cor) ficam em cache em memória
+    durante a sessão, então reexibir o mesmo GIF não reprocessa nada.
+
     Retorna (frames, duracoes_ms).
     """
     if not PIL_DISPONIVEL:
         return [], []
+
+    try:
+        mtime = os.path.getmtime(caminho_gif)
+    except OSError:
+        mtime = 0
+    cor_fundo = tuple(cor_fundo)
+    chave = (os.path.normcase(os.path.abspath(caminho_gif)), mtime, max_w, max_h, fit_mode, round(fullscreen_zoom, 3), cor_fundo)
+    if chave in _CACHE_FRAMES_GIF:
+        _CACHE_FRAMES_GIF.move_to_end(chave)
+        return _CACHE_FRAMES_GIF[chave]
+
     frames = []
     duracoes = []
     max_frames = 180
@@ -579,7 +673,7 @@ def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain"
                             top = (zoom_h - max_h) // 2
                             frame = frame.crop((left, top, left + max_w, top + max_h))
                         else:
-                            fundo = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 255))
+                            fundo = Image.new("RGBA", (max_w, max_h), (*cor_fundo, 255))
                             paste_x = (max_w - zoom_w) // 2
                             paste_y = (max_h - zoom_h) // 2
                             fundo.paste(frame, (paste_x, paste_y), frame)
@@ -588,10 +682,16 @@ def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain"
                 frames.append(tk_frame)
                 dur = int(img.info.get("duration", 80) or 80)
                 duracoes.append(max(min_delay, min(max_delay, dur * step)))
-    except Exception:
+    except Exception as e:
+        logging.warning("Falha ao decodificar GIF '%s': %s", caminho_gif, e)
         return [], []
 
-    return frames, duracoes
+    resultado = (frames, duracoes)
+    _CACHE_FRAMES_GIF[chave] = resultado
+    _CACHE_FRAMES_GIF.move_to_end(chave)
+    while len(_CACHE_FRAMES_GIF) > _CACHE_FRAMES_GIF_MAX:
+        _CACHE_FRAMES_GIF.popitem(last=False)
+    return resultado
 
 def _aplicar_modo_divertido(msg, cfg):
     modo = str(cfg.get("fun_mode", "none")).strip().lower()
@@ -604,6 +704,92 @@ def _aplicar_modo_divertido(msg, cfg):
         return f"{gotas}  {msg}  {gotas}"
     return msg
 
+def _preparar_conteudo_notificacao(janela, popup_w, fullscreen, cor, txt, font_size, fechar_popup):
+    """Cria o Label de texto padrão (modo não-GIF) dentro de uma janela de popup."""
+    lbl = tk.Label(
+        janela,
+        text=txt,
+        font=("Segoe UI", font_size, "bold"),
+        bg=cor,
+        fg="#1a1a2e",
+        wraplength=max(300, popup_w - 80),
+        cursor="hand2",
+        relief="flat",
+        padx=16 if not fullscreen else 40,
+        pady=16 if not fullscreen else 40,
+        justify="center",
+    )
+    lbl.pack(expand=True, fill="both")
+    lbl.bind("<Button-1>", lambda e: fechar_popup())
+    return lbl
+
+def _preparar_janela_gif(janela, fullscreen, cor, fechar_popup):
+    """Monta o container + Label de imagem de uma janela de popup em modo GIF.
+
+    O fundo (que aparece como letterbox/pillarbox ao redor do GIF quando a
+    proporção não bate com a da tela) usa a cor escolhida para o popup, em
+    vez de preto fixo.
+    """
+    janela.configure(bg=cor)
+    bg_container = tk.Frame(janela, bg=cor)
+    bg_container.pack(expand=True, fill="both")
+    bg_container.bind("<Button-1>", lambda e: fechar_popup())
+
+    gif_label = tk.Label(
+        bg_container,
+        bg=cor,
+        cursor="hand2",
+        bd=0,
+        highlightthickness=0,
+        relief="flat",
+    )
+    gif_label.place(relx=0.5, rely=0.5, anchor="center")
+    gif_label.bind("<Button-1>", lambda e: fechar_popup())
+
+    if fullscreen:
+        hint = tk.Label(
+            bg_container,
+            text="Clique para fechar",
+            bg="#000000",
+            fg="#f8fafc",
+            font=("Segoe UI", 10, "bold"),
+            padx=14,
+            pady=6,
+        )
+        hint.place(relx=0.5, rely=0.96, anchor="s")
+        hint.bind("<Button-1>", lambda e: fechar_popup())
+
+    return gif_label
+
+def _iniciar_animacao_gif_sincronizada(janela_mestre, grupos):
+    """Anima várias janelas (uma por monitor) com o MESMO frame ao mesmo tempo.
+
+    `grupos` é uma lista de (gif_label, frames, duracoes) — um por janela. Um
+    único laço `after`, preso à janela mestre, avança o índice de frame e
+    atualiza todos os labels no mesmo tick, evitando que loops independentes
+    percam a sincronia entre monitores.
+    """
+    duracoes_ref = grupos[0][2]
+    total = len(duracoes_ref)
+
+    def tick(i=0):
+        if not janela_mestre.winfo_exists():
+            return
+        i = i % total
+        for gif_label, frames, _duracoes in grupos:
+            try:
+                if not gif_label.winfo_exists():
+                    continue
+                frame = frames[i % len(frames)]
+                gif_label.configure(image=frame)
+                gif_label.image = frame
+            except tk.TclError:
+                continue
+        delay = duracoes_ref[i] if i < len(duracoes_ref) else 80
+        janela_mestre._gif_after_id = janela_mestre.after(delay, lambda: tick(i + 1))
+
+    tick(0)
+
 def mostrar_popup(parent=None, cfg_override=None):
     base = cfg_override or carregar_config()
     cfg = _resolver_posicao_popup(base)
@@ -615,10 +801,16 @@ def mostrar_popup(parent=None, cfg_override=None):
     root.overrideredirect(True)
     root.configure(bg="white")
 
-    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
     fullscreen = bool(cfg.get("fullscreen_notification", False))
-    popup_w, popup_h = (w, h) if fullscreen else (340, 130)
-    x1, y1 = (0, 0) if fullscreen else _pos_inicial(cfg, w, h, popup_w, popup_h)
+    monitores = listar_monitores(root) if fullscreen else None
+
+    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+    if fullscreen:
+        popup_w, popup_h = monitores[0].width, monitores[0].height
+        x1, y1 = monitores[0].x, monitores[0].y
+    else:
+        popup_w, popup_h = 340, 130
+        x1, y1 = _pos_inicial(cfg, w, h, popup_w, popup_h)
 
     root.geometry(f"{popup_w}x{popup_h}+{x1}+{y1}")
 
@@ -648,6 +840,24 @@ def mostrar_popup(parent=None, cfg_override=None):
     gif_path = resolver_gif_do_popup(cfg).strip()
     root._gif_after_id = None
 
+    # Em fullscreen com 2+ monitores, cria uma Toplevel borderless extra por
+    # monitor além do próprio `root` (que cobre o monitor[0]). Todas fecham
+    # juntas e exibem o mesmo conteúdo, sincronizado no caso de GIF.
+    janelas_extra = []
+    if fullscreen and monitores and len(monitores) > 1:
+        for m in monitores[1:]:
+            extra = tk.Toplevel(root)
+            extra.title("Notificação")
+            extra.attributes("-topmost", True)
+            extra.overrideredirect(True)
+            extra.configure(bg="white")
+            extra.geometry(f"{m.width}x{m.height}+{m.x}+{m.y}")
+            janelas_extra.append(extra)
+
+    janelas_geo = [(root, popup_w, popup_h)] + [
+        (j, m.width, m.height) for j, m in zip(janelas_extra, (monitores[1:] if monitores else []))
+    ]
+
     def fechar_popup():
         if getattr(root, "_gif_after_id", None) is not None:
             try:
@@ -657,94 +867,59 @@ def mostrar_popup(parent=None, cfg_override=None):
             root._gif_after_id = None
         if stop_audio:
             parar_som()
+        for j in janelas_extra:
+            try:
+                if j.winfo_exists():
+                    j.destroy()
+            except Exception:
+                pass
         if root.winfo_exists():
             root.destroy()
+
+    for j in janelas_extra:
+        j.bind("<Button-1>", lambda e: fechar_popup())
 
     if visual_mode == "gif" and os.path.isfile(gif_path):
         if not PIL_DISPONIVEL:
             visual_mode = "notification"
             msg = "Pillow não instalado para renderizar GIF. Usando notificação padrão.\n\n" + msg
         else:
-            root.configure(bg="black")
-            bg_container = tk.Frame(root, bg="black")
-            bg_container.pack(expand=True, fill="both")
-            bg_container.bind("<Button-1>", lambda e: fechar_popup())
+            cor_fundo_gif = _tk_cor_para_rgb(root, cor)
+            grupos_gif = []
+            falhou = False
+            for janela, jw, jh in janelas_geo:
+                area_w = max(160, jw - (80 if fullscreen else 20))
+                area_h = max(120, jh - (120 if fullscreen else 20))
+                gif_label = _preparar_janela_gif(janela, fullscreen, cor, fechar_popup)
+                frames, duracoes = _carregar_frames_gif(
+                    gif_path,
+                    area_w,
+                    area_h,
+                    gif_fit_mode,
+                    gif_zoom_mult if fullscreen else 1.0,
+                    cor_fundo_gif,
+                )
+                if not frames:
+                    falhou = True
+                    break
+                grupos_gif.append((gif_label, frames, duracoes))
 
-            gif_label = tk.Label(
-                bg_container,
-                bg="black",
-                cursor="hand2",
-                bd=0,
-                highlightthickness=0,
-                relief="flat",
-            )
-            gif_label.place(relx=0.5, rely=0.5, anchor="center")
-            gif_label.bind("<Button-1>", lambda e: fechar_popup())
-
-            area_w = popup_w - (80 if fullscreen else 20)
-            area_h = popup_h - (120 if fullscreen else 20)
-            area_w = max(160, area_w)
-            area_h = max(120, area_h)
-
-            frames, duracoes = _carregar_frames_gif(
-                gif_path,
-                area_w,
-                area_h,
-                gif_fit_mode,
-                gif_zoom_mult if fullscreen else 1.0,
-            )
-            if frames:
-                root._gif_frames = frames
-                root._gif_duracoes = duracoes
-
-                def animar_gif(i=0):
-                    if not root.winfo_exists() or not frames:
-                        return
-                    i = i % len(frames)
-                    frame = frames[i]
-                    gif_label.configure(image=frame)
-                    gif_label.image = frame
-                    delay = duracoes[i] if i < len(duracoes) else 80
-                    root._gif_after_id = root.after(delay, lambda: animar_gif(i + 1))
-
-                animar_gif(0)
-
-                if fullscreen:
-                    hint = tk.Label(
-                        bg_container,
-                        text="Clique para fechar",
-                        bg="#000000",
-                        fg="#f8fafc",
-                        font=("Segoe UI", 10, "bold"),
-                        padx=14,
-                        pady=6,
-                    )
-                    hint.place(relx=0.5, rely=0.96, anchor="s")
-                    hint.bind("<Button-1>", lambda e: fechar_popup())
+            if not falhou and grupos_gif:
+                root._gif_grupos = grupos_gif  # mantém referência viva (evita garbage collection)
+                _iniciar_animacao_gif_sincronizada(root, grupos_gif)
             else:
                 visual_mode = "notification"
                 msg = "Não foi possível decodificar o GIF. Usando notificação padrão.\n\n" + msg
+                for janela, _jw, _jh in janelas_geo:
+                    for child in janela.winfo_children():
+                        child.destroy()
 
     if visual_mode != "gif":
         txt = msg
         if cfg.get("visual_mode") == "gif" and gif_path and not os.path.isfile(gif_path):
             txt = f"GIF não encontrado, exibindo notificação padrão.\n\n{msg}"
-
-        lbl = tk.Label(
-            root,
-            text=txt,
-            font=("Segoe UI", font_size, "bold"),
-            bg=cor,
-            fg="#1a1a2e",
-            wraplength=max(300, popup_w - 80),
-            cursor="hand2",
-            relief="flat",
-            padx=16 if not fullscreen else 40,
-            pady=16 if not fullscreen else 40,
-            justify="center",
-        )
-        lbl.pack(expand=True, fill="both")
-        lbl.bind("<Button-1>", lambda e: fechar_popup())
+        for janela, jw, _jh in janelas_geo:
+            _preparar_conteudo_notificacao(janela, jw, fullscreen, cor, txt, font_size, fechar_popup)
 
     def agendar_fechar():
         root.after(duracao_ms, fechar_popup)
@@ -1846,6 +2021,8 @@ def janela_app():
 # ============ MAIN ============
 
 if __name__ == "__main__":
+    habilitar_dpi_awareness()
+
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--config", "-c", action="store_true", help="Abrir janela de configurações")
     parser.add_argument("--set", action="append", default=[], help="Define config: chave=valor (pode repetir)")
