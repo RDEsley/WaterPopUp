@@ -15,6 +15,7 @@ import argparse
 import shutil
 import subprocess
 from collections import OrderedDict
+from dataclasses import dataclass, field, fields, asdict
 import tkinter as tk
 from tkinter import ttk, messagebox, font as tkfont, filedialog
 import pygame
@@ -215,6 +216,271 @@ _lembretes_ativos = False
 _lembrete_after_id = None
 _proximo_lembrete_ts = None
 
+# ---- Estrutura v2 (aninhada, gravada em disco) ----
+#
+# O restante do app continua lendo/gravando um dict "flat" (as mesmas chaves
+# de sempre, ex.: cfg.get("interval_minutes")) — só esta seção conhece o
+# formato aninhado. Isso reduz muito o risco de quebrar popup/GUI durante a
+# reorganização do config.json.
+
+def _coagir_int(valor, padrao, minimo=None, maximo=None):
+    try:
+        v = int(round(float(valor)))
+    except (TypeError, ValueError):
+        v = padrao
+    if minimo is not None:
+        v = max(minimo, v)
+    if maximo is not None:
+        v = min(maximo, v)
+    return v
+
+def _coagir_bool(valor, padrao):
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, str):
+        low = valor.strip().lower()
+        if low in ("true", "1", "sim"):
+            return True
+        if low in ("false", "0", "não", "nao"):
+            return False
+    return padrao
+
+def _coagir_str(valor, padrao):
+    return valor if isinstance(valor, str) else padrao
+
+def _coagir_lista_str(valor, padrao):
+    if isinstance(valor, list) and all(isinstance(x, str) for x in valor):
+        return list(valor)
+    return list(padrao)
+
+@dataclass
+class GeneralCfg:
+    """Intervalo entre lembretes e duração do popup na tela."""
+    interval_minutes: int = 10
+    duration_seconds: int = 5
+    def __post_init__(self):
+        self.interval_minutes = _coagir_int(self.interval_minutes, 10, 1, 120)
+        self.duration_seconds = _coagir_int(self.duration_seconds, 5, 3, 60)
+
+@dataclass
+class MessageCfg:
+    """Texto da notificação, tamanho de fonte e efeito divertido aplicado."""
+    text: str = "Hora da sua notificação personalizada! 🔔"
+    font_size: int = 14
+    effect: str = "none"
+    def __post_init__(self):
+        self.text = _coagir_str(self.text, MessageCfg.text) or MessageCfg.text
+        self.font_size = _coagir_int(self.font_size, 14, 10, 24)
+        if self.effect not in ("none", "sparkles", "water", "party"):
+            self.effect = "none"
+
+@dataclass
+class VisualCfg:
+    """Modo de exibição (texto/GIF), tela cheia e ajuste do GIF."""
+    mode: str = "notification"
+    fullscreen: bool = False
+    fit_mode: str = "contain"
+    gif_zoom_percent: int = 140
+    def __post_init__(self):
+        if self.mode not in ("notification", "gif"):
+            self.mode = "notification"
+        self.fullscreen = _coagir_bool(self.fullscreen, False)
+        if self.fit_mode not in ("contain", "cover"):
+            self.fit_mode = "contain"
+        self.gif_zoom_percent = _coagir_int(self.gif_zoom_percent, 140, 100, 300)
+
+@dataclass
+class PositionCfg:
+    """Posição do popup na tela (canto fixo, centro ou aleatório)."""
+    value: str = "top-right"
+    def __post_init__(self):
+        if self.value not in _POSICOES_POPUP + ("random",):
+            self.value = "top-right"
+
+@dataclass
+class ColorsCfg:
+    """Cor de fundo do popup: aleatória ou fixa, a partir de uma paleta nomeada."""
+    random: bool = True
+    palette: str = "Pastel"
+    values: list = field(default_factory=lambda: PALETAS["Pastel"].copy())
+    def __post_init__(self):
+        self.random = _coagir_bool(self.random, True)
+        if self.palette not in PALETAS:
+            self.palette = "Pastel"
+        # A paleta nomeada é sempre a fonte da verdade das cores (mesma regra
+        # que o app já seguia antes da reorganização do config).
+        self.values = PALETAS[self.palette].copy()
+
+@dataclass
+class AnimationCfg:
+    """Animação de entrada do popup (deslizar, zoom, bounce etc.)."""
+    type: str = "slide"
+    def __post_init__(self):
+        if self.type not in set(ANIMACOES) | {"none"}:
+            self.type = "slide"
+
+@dataclass
+class AudioCfg:
+    """Modo de seleção de áudio, arquivos escolhidos, volume e parar-ao-fechar."""
+    mode: str = "random"
+    selected: list = field(default_factory=list)
+    volume: int = 100
+    stop_on_close: bool = True
+    def __post_init__(self):
+        if self.mode not in ("random", "selected"):
+            self.mode = "random"
+        self.selected = _coagir_lista_str(self.selected, [])
+        self.volume = _coagir_int(self.volume, 100, 0, 100)
+        self.stop_on_close = _coagir_bool(self.stop_on_close, True)
+
+@dataclass
+class GifsCfg:
+    """GIF atual, modo (fixo/aleatório do histórico) e histórico salvo."""
+    mode: str = "single"
+    current: str = ""
+    history: list = field(default_factory=list)
+    def __post_init__(self):
+        if self.mode not in ("single", "random_history"):
+            self.mode = "single"
+        self.current = _coagir_str(self.current, "")
+        self.history = _coagir_lista_str(self.history, [])
+
+@dataclass
+class WindowCfg:
+    """Textos da janela de controle principal."""
+    control_window_title: str = "🔔 Water Popup"
+    control_window_status: str = "Notificações ativas"
+    control_window_hint: str = "Feche esta janela para encerrar as notificações"
+    def __post_init__(self):
+        self.control_window_title = _coagir_str(self.control_window_title, WindowCfg.control_window_title)
+        self.control_window_status = _coagir_str(self.control_window_status, WindowCfg.control_window_status)
+        self.control_window_hint = _coagir_str(self.control_window_hint, WindowCfg.control_window_hint)
+
+@dataclass
+class ConfigV2:
+    """Estrutura v2 completa, gravada em config.json."""
+    version: int = 2
+    general: GeneralCfg = field(default_factory=GeneralCfg)
+    message: MessageCfg = field(default_factory=MessageCfg)
+    visual: VisualCfg = field(default_factory=VisualCfg)
+    position: PositionCfg = field(default_factory=PositionCfg)
+    colors: ColorsCfg = field(default_factory=ColorsCfg)
+    animation: AnimationCfg = field(default_factory=AnimationCfg)
+    audio: AudioCfg = field(default_factory=AudioCfg)
+    gifs: GifsCfg = field(default_factory=GifsCfg)
+    window: WindowCfg = field(default_factory=WindowCfg)
+
+# Mapeamento chave-flat <-> (seção, campo) aninhado. Única fonte de verdade
+# usada por: migração, salvar, --print-config e --set com chave aninhada.
+_MAPA_FLAT_PARA_NESTED = {
+    "message": ("message", "text"),
+    "font_size": ("message", "font_size"),
+    "fun_mode": ("message", "effect"),
+    "interval_minutes": ("general", "interval_minutes"),
+    "popup_duration_seconds": ("general", "duration_seconds"),
+    "visual_mode": ("visual", "mode"),
+    "fullscreen_notification": ("visual", "fullscreen"),
+    "gif_fit_mode": ("visual", "fit_mode"),
+    "gif_fullscreen_zoom_percent": ("visual", "gif_zoom_percent"),
+    "popup_position": ("position", "value"),
+    "random_colors": ("colors", "random"),
+    "color_palette": ("colors", "palette"),
+    "colors": ("colors", "values"),
+    "popup_animation": ("animation", "type"),
+    "audio_mode": ("audio", "mode"),
+    "selected_audios": ("audio", "selected"),
+    "notification_volume": ("audio", "volume"),
+    "stop_audio_on_close": ("audio", "stop_on_close"),
+    "gif_mode": ("gifs", "mode"),
+    "gif_path": ("gifs", "current"),
+    "gif_history": ("gifs", "history"),
+    "control_window_title": ("window", "control_window_title"),
+    "control_window_status": ("window", "control_window_status"),
+    "control_window_hint": ("window", "control_window_hint"),
+}
+_MAPA_NESTED_PARA_FLAT = {f"{secao}.{campo}": chave for chave, (secao, campo) in _MAPA_FLAT_PARA_NESTED.items()}
+
+def _aninhar_flat(flat: dict) -> dict:
+    """Converte um dict flat (chaves como 'interval_minutes') para a estrutura
+    aninhada v2 (seções general/message/visual/...)."""
+    nested = {"version": 2}
+    for chave_flat, (secao, campo) in _MAPA_FLAT_PARA_NESTED.items():
+        valor = flat.get(chave_flat, CONFIG_PADRAO.get(chave_flat))
+        nested.setdefault(secao, {})[campo] = valor
+    return nested
+
+def _achatar_nested(nested: dict) -> dict:
+    """Converte a estrutura aninhada v2 de volta para o dict flat usado
+    internamente pelo resto do app."""
+    flat = CONFIG_PADRAO.copy()
+    for chave_flat, (secao, campo) in _MAPA_FLAT_PARA_NESTED.items():
+        secao_dict = nested.get(secao)
+        if isinstance(secao_dict, dict) and campo in secao_dict:
+            flat[chave_flat] = secao_dict[campo]
+    return flat
+
+def _construir_config_v2(dados: dict) -> ConfigV2:
+    """Constrói um ConfigV2 validado a partir de um dict aninhado bruto
+    (possivelmente incompleto ou com tipos/valores inválidos)."""
+    def secao(nome, cls):
+        bruto = dados.get(nome) if isinstance(dados, dict) else None
+        if not isinstance(bruto, dict):
+            bruto = {}
+        campos_validos = {f.name for f in fields(cls)}
+        bruto = {k: v for k, v in bruto.items() if k in campos_validos}
+        try:
+            return cls(**bruto)
+        except Exception as e:
+            logging.warning("Seção de config '%s' inválida (%s); usando padrão.", nome, e)
+            return cls()
+
+    return ConfigV2(
+        version=2,
+        general=secao("general", GeneralCfg),
+        message=secao("message", MessageCfg),
+        visual=secao("visual", VisualCfg),
+        position=secao("position", PositionCfg),
+        colors=secao("colors", ColorsCfg),
+        animation=secao("animation", AnimationCfg),
+        audio=secao("audio", AudioCfg),
+        gifs=secao("gifs", GifsCfg),
+        window=secao("window", WindowCfg),
+    )
+
+def _config_tem_versao_atual(dados) -> bool:
+    return isinstance(dados, dict) and dados.get("version") == 2
+
+def _fazer_backup_config(path, sufixo, somente_se_ausente=False):
+    """Copia o config.json atual para um arquivo de backup antes de sobrescrevê-lo."""
+    if not os.path.isfile(path):
+        return
+    if sufixo == "bak":
+        destino = path + ".bak"
+        if somente_se_ausente and os.path.exists(destino):
+            return
+    else:
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        destino = f"{path}.{sufixo}-{ts}.bak"
+    try:
+        shutil.copy2(path, destino)
+        logging.info("Backup do config.json anterior salvo em %s", destino)
+    except OSError as e:
+        logging.warning("Falha ao gerar backup do config.json: %s", e)
+
+def _avisar_config_restaurado():
+    """Mostra um aviso ao usuário quando há uma janela Tk ativa (fluxo GUI);
+    em fluxos puramente CLI, o aviso já foi registrado via logging."""
+    try:
+        if tk._default_root is not None:
+            messagebox.showwarning(
+                "Configuração",
+                "O arquivo config.json estava corrompido ou em formato inválido.\n"
+                "As configurações foram restauradas para o padrão (um backup do "
+                "arquivo anterior foi salvo ao lado dele).",
+            )
+    except Exception:
+        pass
+
 def carregar_config():
     global _config_cache, _config_mtime
     path = caminho_config()
@@ -225,29 +491,63 @@ def carregar_config():
 
     try:
         mtime = os.path.getmtime(path)
-        if mtime == _config_mtime and _config_cache:
-            return _config_cache
-
-        with open(path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        _config_cache = {**CONFIG_PADRAO, **cfg}
-        if "color_palette" in cfg and cfg["color_palette"] in PALETAS:
-            _config_cache["colors"] = PALETAS[cfg["color_palette"]].copy()
-        _config_mtime = mtime
-        return _config_cache
-    except Exception:
+    except OSError as e:
+        logging.error("Não foi possível acessar config.json: %s", e)
         return CONFIG_PADRAO.copy()
+
+    if mtime == _config_mtime and _config_cache:
+        return _config_cache
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        if not isinstance(dados, dict):
+            raise ValueError(f"formato inesperado ({type(dados).__name__})")
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        logging.error("config.json inválido/corrompido (%s). Restaurando valores padrão.", e)
+        _fazer_backup_config(path, sufixo="corrompido")
+        cfg_inicial = CONFIG_PADRAO.copy()
+        salvar_config(cfg_inicial)
+        _avisar_config_restaurado()
+        return cfg_inicial
+
+    migrando = not _config_tem_versao_atual(dados)
+    if migrando:
+        logging.info("config.json em formato antigo (v1); migrando para a estrutura v2.")
+        _fazer_backup_config(path, sufixo="bak", somente_se_ausente=True)
+        nested = _aninhar_flat(dados)
+    else:
+        nested = dados
+
+    cfg_v2 = _construir_config_v2(nested)
+    nested_validado = asdict(cfg_v2)
+    flat = _achatar_nested(nested_validado)
+
+    if migrando:
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(nested_validado, f, indent=2, ensure_ascii=False)
+            mtime = os.path.getmtime(path)
+        except OSError as e:
+            logging.warning("Não foi possível gravar config.json migrado: %s", e)
+
+    _config_cache = flat
+    _config_mtime = mtime
+    return _config_cache
 
 def salvar_config(cfg):
     global _config_cache, _config_mtime
     path = caminho_config()
     os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    nested = _aninhar_flat({**CONFIG_PADRAO, **cfg})
+    cfg_v2 = _construir_config_v2(nested)
+    nested_validado = asdict(cfg_v2)
+
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-    # Mantém cache e mtime sincronizados com o último save
-    _config_cache = {**CONFIG_PADRAO, **cfg}
-    if _config_cache.get("color_palette") in PALETAS:
-        _config_cache["colors"] = PALETAS[_config_cache["color_palette"]].copy()
+        json.dump(nested_validado, f, indent=2, ensure_ascii=False)
+
+    _config_cache = _achatar_nested(nested_validado)
     _config_mtime = os.path.getmtime(path)
 
 # ============ ÁUDIO ============
@@ -2039,7 +2339,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if args.print_config:
-        print(json.dumps(carregar_config(), indent=2, ensure_ascii=False))
+        print(json.dumps(_aninhar_flat(carregar_config()), indent=2, ensure_ascii=False))
         sys.exit(0)
 
     if args.set:
@@ -2066,9 +2366,15 @@ if __name__ == "__main__":
         updates = {}
         for item in args.set:
             if "=" not in item:
-                raise SystemExit(f"--set inválido: {item}. Use chave=valor")
+                raise SystemExit(f"--set inválido: {item}. Use chave=valor ou secao.campo=valor")
             k, v = item.split("=", 1)
-            updates[k.strip()] = parse_val(v)
+            k = k.strip()
+            if "." in k:
+                chave_flat = _MAPA_NESTED_PARA_FLAT.get(k)
+                if chave_flat is None:
+                    raise SystemExit(f"--set: chave aninhada desconhecida '{k}'.")
+                k = chave_flat
+            updates[k] = parse_val(v)
 
         salvar_config({**atual, **updates})
         print("OK: config atualizado em", caminho_config())

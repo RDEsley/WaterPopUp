@@ -1,41 +1,61 @@
 {
-  "message": "Sua notificação personalizada! 🔔",
-  "interval_minutes": 10,
-  "popup_duration_seconds": 5,
-  "fullscreen_notification": false,
-  "stop_audio_on_close": true,
-  "visual_mode": "notification",
-  "gif_mode": "random_history",
-  "gif_fit_mode": "contain",
-  "gif_fullscreen_zoom_percent": 100,
-  "gif_path": "c:\\Users\\Richard\\Projetos - Disco Local\\WaterPopUp\\gifs\\violet2.gif",
-  "gif_history": [
-    "c:\\Users\\Richard\\Projetos - Disco Local\\WaterPopUp\\gifs\\violet2.gif"
-  ],
-  "random_colors": true,
-  "color_palette": "Pastel",
-  "colors": [
-    "#FFB6C1",
-    "#87CEEB",
-    "#98FB98",
-    "#E6E6FA",
-    "#FFDAB9",
-    "#FFFFE0",
-    "#DDA0DD",
-    "#F0E68C",
-    "#FFE4E1",
-    "#E0FFFF",
-    "#F5DEB3",
-    "#D8BFD8",
-    "#FAEBD7",
-    "#F0FFF0",
-    "#FFF0F5"
-  ],
-  "popup_animation": "slide",
-  "popup_position": "top-right",
-  "font_size": 14,
-  "fun_mode": "none",
-  "audio_mode": "random",
-  "selected_audios": [],
-  "notification_volume": 50
+  "version": 2,
+  "general": {
+    "interval_minutes": 10,
+    "duration_seconds": 5
+  },
+  "message": {
+    "text": "Sua notificação personalizada! 🔔",
+    "font_size": 14,
+    "effect": "none"
+  },
+  "visual": {
+    "mode": "notification",
+    "fullscreen": false,
+    "fit_mode": "contain",
+    "gif_zoom_percent": 140
+  },
+  "position": {
+    "value": "top-right"
+  },
+  "colors": {
+    "random": true,
+    "palette": "Pastel",
+    "values": [
+      "#FFB6C1",
+      "#87CEEB",
+      "#98FB98",
+      "#E6E6FA",
+      "#FFDAB9",
+      "#FFFFE0",
+      "#DDA0DD",
+      "#F0E68C",
+      "#FFE4E1",
+      "#E0FFFF",
+      "#F5DEB3",
+      "#D8BFD8",
+      "#FAEBD7",
+      "#F0FFF0",
+      "#FFF0F5"
+    ]
+  },
+  "animation": {
+    "type": "slide"
+  },
+  "audio": {
+    "mode": "random",
+    "selected": [],
+    "volume": 100,
+    "stop_on_close": true
+  },
+  "gifs": {
+    "mode": "single",
+    "current": "",
+    "history": []
+  },
+  "window": {
+    "control_window_title": "🔔 Water Popup",
+    "control_window_status": "Notificações ativas",
+    "control_window_hint": "Feche esta janela para encerrar as notificações"
+  }
 }
