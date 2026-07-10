@@ -47,6 +47,8 @@ def tocar_arquivo_audio(caminho: str, cfg: Optional[Dict[str, Any]] = None) -> N
 def tocar_som(cfg: Optional[Dict[str, Any]] = None) -> None:
     if cfg is None:
         cfg = carregar_config()
+    if not cfg.get("audio_enabled", True):
+        return
     audios = listar_audios()
     if not audios:
         return

@@ -202,7 +202,7 @@ do GIF selecionado:
 - **Posição** — Aleatório (incluindo centro) ou posição fixa (cantos + centro)
 - **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico), com pré-visualização
 - **Animação** — Aleatória, Deslizar, Vertical, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
-- **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`, controle de volume
+- **Áudio** — Ativar/desativar o som das notificações, modo aleatório ou seleção de arquivos específicos da pasta `audios/`, controle de volume
 - **Avançado** — Título, texto de status e dica da janela principal (antes só dava pra mudar editando o `config.json` ou via `--set`)
 
 ### Pasta de áudios

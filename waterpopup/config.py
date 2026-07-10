@@ -131,6 +131,7 @@ CONFIG_PADRAO: Dict[str, Any] = {
     "popup_position": "top-right",
     "font_size": 14,
     "fun_mode": "none",
+    "audio_enabled": True,
     "audio_mode": "random",
     "selected_audios": [],
     "notification_volume": 100,
@@ -248,11 +249,13 @@ class AnimationCfg:
 @dataclass
 class AudioCfg:
     """Modo de seleção de áudio, arquivos escolhidos, volume e parar-ao-fechar."""
+    enabled: bool = True
     mode: str = "random"
     selected: list = field(default_factory=list)
     volume: int = 100
     stop_on_close: bool = True
     def __post_init__(self):
+        self.enabled = _coagir_bool(self.enabled, True)
         if self.mode not in ("random", "selected"):
             self.mode = "random"
         self.selected = _coagir_lista_str(self.selected, [])
@@ -313,6 +316,7 @@ _MAPA_FLAT_PARA_NESTED = {
     "color_palette": ("colors", "palette"),
     "colors": ("colors", "values"),
     "popup_animation": ("animation", "type"),
+    "audio_enabled": ("audio", "enabled"),
     "audio_mode": ("audio", "mode"),
     "selected_audios": ("audio", "selected"),
     "notification_volume": ("audio", "volume"),

@@ -43,6 +43,7 @@
     "type": "slide"
   },
   "audio": {
+    "enabled": true,
     "mode": "random",
     "selected": [],
     "volume": 100,

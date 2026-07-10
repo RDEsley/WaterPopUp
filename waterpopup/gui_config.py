@@ -183,6 +183,7 @@ def abrir_configuracoes(parent=None):
 
     anim_var = ctk.StringVar(value=cfg.get("popup_animation", "slide"))
 
+    audio_enabled_var = ctk.BooleanVar(value=cfg.get("audio_enabled", True))
     audio_mode_var = ctk.StringVar(value=cfg.get("audio_mode", "random"))
     _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
     try:
@@ -630,14 +631,18 @@ def abrir_configuracoes(parent=None):
             row=idx // 3, column=idx % 3, sticky="w", padx=(0, 20), pady=4
         )
 
-    # ---- Áudio (audio: mode, selected, volume, stop_on_close) ----
+    # ---- Áudio (audio: enabled, mode, selected, volume, stop_on_close) ----
     f_audio = _card(tab_audio)
     f_audio.pack(fill="both", expand=True, padx=4, pady=4)
     inner = ctk.CTkFrame(f_audio, fg_color="transparent")
     inner.pack(fill="both", expand=True, padx=16, pady=16)
 
-    _radio(inner, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", font=theme.fonte(11)).pack(anchor="w", pady=2)
-    _radio(inner, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _checkbox(inner, text="Tocar som nas notificações", variable=audio_enabled_var, font=theme.fonte(11, "bold")).pack(anchor="w", pady=(0, 10))
+
+    radio_modo_random = _radio(inner, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", font=theme.fonte(11))
+    radio_modo_random.pack(anchor="w", pady=2)
+    radio_modo_selected = _radio(inner, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", font=theme.fonte(11))
+    radio_modo_selected.pack(anchor="w", pady=2)
 
     vol_frame = ctk.CTkFrame(inner, fg_color="transparent")
     vol_frame.pack(fill="x", pady=(12, 6))
@@ -655,8 +660,20 @@ def abrir_configuracoes(parent=None):
         vol_pct_label.configure(text=f"{v}%")
 
     vol_var.trace_add("write", atualizar_label_vol)
-    _slider(vol_frame, from_=0, to=100, variable=vol_var, number_of_steps=100).pack(fill="x", pady=(6, 0))
+    # Largura fixa (não fill="x") pra não esticar o slider pela largura
+    # inteira da aba — só o suficiente pra manusear o volume com conforto.
+    slider_vol = _slider(vol_frame, from_=0, to=100, variable=vol_var, number_of_steps=100, width=260)
+    slider_vol.pack(anchor="w", pady=(6, 0))
     _subtitulo(vol_frame, "Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).").pack(anchor="w", pady=(6, 0))
+
+    def atualizar_estado_audio(*_a):
+        estado = "normal" if audio_enabled_var.get() else "disabled"
+        radio_modo_random.configure(state=estado)
+        radio_modo_selected.configure(state=estado)
+        slider_vol.configure(state=estado)
+
+    audio_enabled_var.trace_add("write", atualizar_estado_audio)
+    atualizar_estado_audio()
 
     def cfg_com_volume_atual():
         c = {**carregar_config()}
@@ -859,6 +876,7 @@ def abrir_configuracoes(parent=None):
             "font_size": int(font_var.get() or 14),
             "stop_audio_on_close": stop_audio_var.get(),
             "popup_duration_seconds": 4,
+            "audio_enabled": audio_enabled_var.get(),
             "audio_mode": audio_mode_var.get(),
             "selected_audios": [lb.get(i) for i in lb.curselection()],
             "notification_volume": nv,
@@ -942,6 +960,7 @@ def abrir_configuracoes(parent=None):
             "popup_position": pos_var.get(),
             "font_size": max(10, min(24, fs)),
             "fun_mode": fun_mode_var.get(),
+            "audio_enabled": audio_enabled_var.get(),
             "audio_mode": audio_mode_var.get(),
             "selected_audios": selected,
             "notification_volume": vol_pct,
