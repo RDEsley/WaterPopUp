@@ -2,3 +2,4 @@
 pygame==2.6.1
 Pillow
 screeninfo==0.8.1
+customtkinter==6.0.0

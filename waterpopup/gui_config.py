@@ -1,359 +1,380 @@
-"""Janela gráfica de configurações (abas Geral/Notificação/Aparência/Áudio/Extras)."""
+"""Janela gráfica de configurações — abas espelhando as seções do config.json
+v2 (Geral, Mensagem, Visual/GIF, Posição, Cores, Animação, Áudio, Avançado)."""
 
 import os
 import shutil
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import messagebox, filedialog
+import customtkinter as ctk
 
-from .config import carregar_config, salvar_config, CONFIG_PADRAO, PALETAS, POSICOES_POPUP, CANTOS_POPUP
+from . import theme
+from .config import carregar_config, salvar_config, CONFIG_PADRAO, PALETAS, POSICOES_POPUP
 from .audio import listar_audios, tocar_arquivo_audio, parar_som, pasta_audios, abrir_pasta_no_explorador
-from .popup import normalizar_historico_gifs, importar_gif_para_app, mostrar_popup
+from .popup import normalizar_historico_gifs, importar_gif_para_app, mostrar_popup, carregar_frames_para_preview
 
-# Tema da janela de configuração (azul claro, legível)
-CFG_FUNDO = "#dce6f5"
-CFG_CARD = "#eef4fc"
-CFG_CARD_INNER = "#e2ebf8"
-CFG_TEXTO = "#1e3a5f"
-CFG_SUB = "#5a6f8f"
-CFG_ACCENT = "#2563eb"
-CFG_ACCENT_HOVER = "#1d4ed8"
-CFG_BORDER = "#b8cce8"
-CFG_BTN_SEC_BG = "#ffffff"
-CFG_BTN_SEC_ACTIVE = "#d8e4f8"
+_ANIM_OPCOES = [
+    ("random", "Aleatória"),
+    ("slide", "Deslizar"),
+    ("slide-vertical", "Vertical"),
+    ("scale", "Zoom"),
+    ("bounce", "Bounce"),
+    ("elastic", "Elástico"),
+    ("drop", "Cair"),
+    ("fade", "Fade"),
+    ("none", "Nenhuma"),
+]
 
-def _cfg_btn_sec(parent, **kw):
-    """Botão secundário com relevo (ttk+clam no Windows costuma ficar achatado)."""
-    opts = {
-        "font": ("Segoe UI", 10),
-        "bg": CFG_BTN_SEC_BG,
-        "fg": CFG_TEXTO,
-        "activebackground": CFG_BTN_SEC_ACTIVE,
-        "activeforeground": CFG_TEXTO,
-        "relief": tk.RAISED,
-        "borderwidth": 2,
-        "highlightthickness": 0,
-        "padx": 14,
-        "pady": 8,
-        "cursor": "hand2",
-    }
+_POS_OPCOES = [
+    ("random", "Aleatório (inclui centro)"),
+    ("top-right", "Superior direito"),
+    ("top-left", "Superior esquerdo"),
+    ("bottom-right", "Inferior direito"),
+    ("bottom-left", "Inferior esquerdo"),
+    ("center", "Centro"),
+]
+
+_FUN_MODE_OPCOES = [
+    ("none", "Sem efeito extra"),
+    ("sparkles", "Brilhos (✨)"),
+    ("water", "Tema água (💧🫧🌊)"),
+    ("party", "Modo festa (🎉🥳)"),
+]
+
+
+def _card(parent, **kw):
+    opts = dict(fg_color=theme.COR_CARD_2, corner_radius=theme.RAIO_BORDA)
     opts.update(kw)
-    return tk.Button(parent, **opts)
+    return ctk.CTkFrame(parent, **opts)
 
-def _cfg_btn_pri(parent, **kw):
-    opts = {
-        "font": ("Segoe UI", 10, "bold"),
-        "bg": CFG_ACCENT,
-        "fg": "white",
-        "activebackground": CFG_ACCENT_HOVER,
-        "activeforeground": "white",
-        "relief": tk.RAISED,
-        "borderwidth": 2,
-        "highlightthickness": 0,
-        "padx": 20,
-        "pady": 9,
-        "cursor": "hand2",
-    }
+
+def _rotulo(parent, texto, **kw):
+    opts = dict(font=theme.fonte(11), text_color=theme.COR_TEXTO, anchor="w")
     opts.update(kw)
-    return tk.Button(parent, **opts)
+    return ctk.CTkLabel(parent, text=texto, **opts)
+
+
+def _subtitulo(parent, texto, **kw):
+    opts = dict(font=theme.fonte(9), text_color=theme.COR_SUBTEXTO, anchor="w", justify="left")
+    opts.update(kw)
+    return ctk.CTkLabel(parent, text=texto, **opts)
+
+
+def _botao_sec(parent, **kw):
+    opts = dict(
+        fg_color=theme.COR_BOTAO_SEC, hover_color=theme.COR_BOTAO_SEC_HOVER,
+        text_color=theme.COR_TEXTO, font=theme.fonte(11), corner_radius=theme.RAIO_BORDA_PEQUENO,
+    )
+    opts.update(kw)
+    return ctk.CTkButton(parent, **opts)
+
+
+def _botao_pri(parent, **kw):
+    opts = dict(
+        fg_color=theme.COR_BOTAO, hover_color=theme.COR_BOTAO_HOVER,
+        text_color="white", font=theme.fonte(11, "bold"), corner_radius=theme.RAIO_BORDA_PEQUENO,
+    )
+    opts.update(kw)
+    return ctk.CTkButton(parent, **opts)
+
 
 def abrir_configuracoes(parent=None):
     is_top_level = parent is not None
-    root = tk.Toplevel(parent) if is_top_level else tk.Tk()
+    root = ctk.CTkToplevel(parent) if is_top_level else ctk.CTk()
     root.title("🔔 Water Popup — Configurações")
-    root.geometry("980x780")
-    root.minsize(700, 560)
-    root.resizable(True, True)
-    root.configure(bg=CFG_FUNDO)
+    root.geometry("940x740")
+    root.minsize(780, 620)
+    root.configure(fg_color=theme.COR_FUNDO)
     if is_top_level:
         root.transient(parent)
         root.grab_set()
 
-    # Estilo (escopos separados para não afetar a janela principal)
-    style = ttk.Style()
-    style.theme_use("clam")
-    style.configure("CfgRoot.TFrame", background=CFG_FUNDO)
-    style.configure("CfgCard.TLabelframe", background=CFG_CARD, foreground=CFG_TEXTO, borderwidth=1, relief="solid")
-    style.configure("CfgCard.TLabelframe.Label", background=CFG_CARD, foreground=CFG_ACCENT, font=("Segoe UI", 11, "bold"))
-    style.configure("CfgCard.TFrame", background=CFG_CARD)
-    style.configure("CfgTFrame", background=CFG_FUNDO)
-    style.configure("CfgTLabel", background=CFG_FUNDO, foreground=CFG_TEXTO, font=("Segoe UI", 10))
-    style.configure("CfgCard.TLabel", background=CFG_CARD, foreground=CFG_TEXTO, font=("Segoe UI", 10))
-    style.configure("Cfg.Subtle.TLabel", background=CFG_CARD, foreground=CFG_SUB, font=("Segoe UI", 9))
-    style.configure("Cfg.TEntry", fieldbackground="white", foreground=CFG_TEXTO, insertcolor=CFG_TEXTO, borderwidth=1)
-    style.configure("Cfg.TSpinbox", fieldbackground="white", foreground=CFG_TEXTO, borderwidth=1)
-    style.configure("Cfg.TCheckbutton", background=CFG_CARD, foreground=CFG_TEXTO)
-    style.configure("Cfg.TRadiobutton", background=CFG_CARD, foreground=CFG_TEXTO)
-    style.map("Cfg.TCheckbutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
-    style.map("Cfg.TRadiobutton", background=[("active", CFG_CARD)], foreground=[("active", CFG_TEXTO)])
-
     cfg = carregar_config()
 
-    main = tk.Frame(root, bg=CFG_FUNDO)
-    main.pack(fill="both", expand=True, padx=14, pady=(10, 6))
-    main.grid_columnconfigure(0, weight=1)
-    main.grid_rowconfigure(1, weight=1)
+    main = ctk.CTkFrame(root, fg_color="transparent")
+    main.pack(fill="both", expand=True, padx=16, pady=14)
 
-    header = tk.Frame(main, bg=CFG_FUNDO)
-    header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-    tk.Label(
-        header, text="Configurações",
-        font=("Segoe UI", 18, "bold"), fg=CFG_TEXTO, bg=CFG_FUNDO
+    header = ctk.CTkFrame(main, fg_color="transparent")
+    header.pack(fill="x", pady=(0, 10))
+    ctk.CTkLabel(
+        header, text="Configurações", font=theme.fonte_titulo(20), text_color=theme.COR_TEXTO, anchor="w",
     ).pack(anchor="w")
-    tk.Label(
-        header,
-        text="Personalize suas notificações. As alterações são salvas no arquivo de configuração.",
-        font=("Segoe UI", 9), fg=CFG_SUB, bg=CFG_FUNDO, wraplength=760, justify="left",
+    _subtitulo(
+        header, "Personalize suas notificações. As alterações são salvas no arquivo de configuração.",
     ).pack(anchor="w", pady=(4, 0))
 
-    # ========= Variáveis-base =========
-    msg_var = tk.StringVar(value=cfg.get("message", CONFIG_PADRAO["message"]))
-    interval_var = tk.StringVar(value=str(cfg.get("interval_minutes", 10)))
-    duration_var = tk.StringVar(value=str(cfg.get("popup_duration_seconds", 12)))
-    stop_audio_var = tk.BooleanVar(value=cfg.get("stop_audio_on_close", True))
-    fullscreen_var = tk.BooleanVar(value=cfg.get("fullscreen_notification", False))
+    # ========= Variáveis =========
+    msg_var = ctk.StringVar(value=cfg.get("message", CONFIG_PADRAO["message"]))
+    font_var = ctk.StringVar(value=str(cfg.get("font_size", 14)))
+    fun_mode_saved = str(cfg.get("fun_mode", "none")).lower().strip()
+    if fun_mode_saved not in dict(_FUN_MODE_OPCOES):
+        fun_mode_saved = "none"
+    fun_mode_var = ctk.StringVar(value=fun_mode_saved)
 
-    random_colors_var = tk.BooleanVar(value=cfg.get("random_colors", True))
-    palette_var = tk.StringVar(value=cfg.get("color_palette", "Pastel"))
-    anim_var = tk.StringVar(value=cfg.get("popup_animation", "slide"))
-    font_var = tk.StringVar(value=str(cfg.get("font_size", 14)))
-
-    pos_saved = cfg.get("popup_position", "top-right")
-    if pos_saved not in POSICOES_POPUP + ("random",):
-        pos_saved = "top-right"
-    pos_var = tk.StringVar(value=pos_saved)
+    interval_var = ctk.StringVar(value=str(cfg.get("interval_minutes", 10)))
+    duration_var = ctk.StringVar(value=str(cfg.get("popup_duration_seconds", 12)))
 
     visual_mode_saved = str(cfg.get("visual_mode", "notification")).lower().strip()
     if visual_mode_saved not in ("notification", "gif"):
         visual_mode_saved = "notification"
-    visual_mode_var = tk.StringVar(value=visual_mode_saved)
+    visual_mode_var = ctk.StringVar(value=visual_mode_saved)
+    fullscreen_var = ctk.BooleanVar(value=cfg.get("fullscreen_notification", False))
+    stop_audio_var = ctk.BooleanVar(value=cfg.get("stop_audio_on_close", True))
 
-    gif_mode_saved = str(cfg.get("gif_mode", "single")).lower().strip()
-    if gif_mode_saved not in ("single", "random_history"):
-        gif_mode_saved = "single"
-    gif_mode_var = tk.StringVar(value=gif_mode_saved)
     gif_fit_mode_saved = str(cfg.get("gif_fit_mode", "contain")).lower().strip()
     if gif_fit_mode_saved not in ("contain", "cover"):
         gif_fit_mode_saved = "contain"
-    gif_fit_mode_var = tk.StringVar(value=gif_fit_mode_saved)
+    gif_fit_mode_var = ctk.StringVar(value=gif_fit_mode_saved)
     gif_zoom_saved = cfg.get("gif_fullscreen_zoom_percent", 140)
     try:
         gif_zoom_saved = max(100, min(300, int(round(float(gif_zoom_saved)))))
     except (TypeError, ValueError):
         gif_zoom_saved = 140
-    gif_zoom_var = tk.StringVar(value=str(gif_zoom_saved))
-    gif_path_var = tk.StringVar(value=(cfg.get("gif_path") or "").strip())
+    gif_zoom_var = ctk.StringVar(value=str(gif_zoom_saved))
+
+    gif_mode_saved = str(cfg.get("gif_mode", "single")).lower().strip()
+    if gif_mode_saved not in ("single", "random_history"):
+        gif_mode_saved = "single"
+    gif_mode_var = ctk.StringVar(value=gif_mode_saved)
+    gif_path_var = ctk.StringVar(value=(cfg.get("gif_path") or "").strip())
     gif_history = normalizar_historico_gifs(cfg.get("gif_history", []))
 
-    fun_mode_saved = str(cfg.get("fun_mode", "none")).lower().strip()
-    if fun_mode_saved not in ("none", "sparkles", "water", "party"):
-        fun_mode_saved = "none"
-    fun_mode_var = tk.StringVar(value=fun_mode_saved)
+    pos_saved = cfg.get("popup_position", "top-right")
+    if pos_saved not in POSICOES_POPUP + ("random",):
+        pos_saved = "top-right"
+    pos_var = ctk.StringVar(value=pos_saved)  # única variável de posição (antes existia duplicada)
 
+    random_colors_var = ctk.BooleanVar(value=cfg.get("random_colors", True))
+    palette_var = ctk.StringVar(value=cfg.get("color_palette", "Pastel"))
+
+    anim_var = ctk.StringVar(value=cfg.get("popup_animation", "slide"))
+
+    audio_mode_var = ctk.StringVar(value=cfg.get("audio_mode", "random"))
     _vol_saved = cfg.get("notification_volume", CONFIG_PADRAO["notification_volume"])
     try:
         _vol_saved = max(0, min(100, int(round(float(_vol_saved)))))
     except (TypeError, ValueError):
         _vol_saved = 100
-    vol_var = tk.DoubleVar(value=_vol_saved)
+    vol_var = ctk.DoubleVar(value=_vol_saved)
 
-    audio_mode_var = tk.StringVar(value=cfg.get("audio_mode", "random"))
+    title_var = ctk.StringVar(value=cfg.get("control_window_title", CONFIG_PADRAO["control_window_title"]))
+    status_txt_var = ctk.StringVar(value=cfg.get("control_window_status", CONFIG_PADRAO["control_window_status"]))
+    hint_var = ctk.StringVar(value=cfg.get("control_window_hint", CONFIG_PADRAO["control_window_hint"]))
 
-    nb = ttk.Notebook(main)
-    nb.grid(row=1, column=0, sticky="nsew", pady=(0, 6))
+    # ========= Validação inline compartilhada =========
+    campos_invalidos = set()
+    _botao_salvar_ref = {"widget": None}
 
-    tab_geral = tk.Frame(nb, bg=CFG_FUNDO)
-    tab_notif = tk.Frame(nb, bg=CFG_FUNDO)
-    tab_ap = tk.Frame(nb, bg=CFG_FUNDO)
-    tab_aud = tk.Frame(nb, bg=CFG_FUNDO)
-    tab_extra = tk.Frame(nb, bg=CFG_FUNDO)
+    def _atualizar_estado_salvar():
+        # O botão Salvar só existe depois que todas as abas são montadas;
+        # até lá, esta função é um no-op seguro (os campos numéricos das
+        # primeiras abas já disparam validação ao serem criados).
+        if _botao_salvar_ref["widget"] is not None:
+            _botao_salvar_ref["widget"].configure(state="disabled" if campos_invalidos else "normal")
 
-    nb.add(tab_geral, text="  Geral  ")
-    nb.add(tab_notif, text="  Notificação  ")
-    nb.add(tab_ap, text="  Aparência  ")
-    nb.add(tab_aud, text="  Áudio  ")
-    nb.add(tab_extra, text="  Extras  ")
+    def _campo_numerico(parent, chave, var, minimo, maximo, largura=80):
+        """Campo numérico com feedback de erro inline; enquanto o valor
+        estiver fora da faixa aceita, o botão Salvar fica desabilitado."""
+        wrapper = ctk.CTkFrame(parent, fg_color="transparent")
+        entry = ctk.CTkEntry(wrapper, textvariable=var, width=largura, font=theme.fonte(11))
+        entry.pack(anchor="w")
+        erro_lbl = ctk.CTkLabel(wrapper, text="", font=theme.fonte(9), text_color=theme.COR_ERRO, anchor="w")
+        erro_lbl.pack(anchor="w")
 
-    # ========= Aba Geral =========
-    f_msg = ttk.LabelFrame(tab_geral, text="  Mensagem principal  ", padding=16, style="CfgCard.TLabelframe")
-    f_msg.pack(fill="x", pady=(0, 12))
-    f_msg.columnconfigure(0, weight=1)
-    msg_entry = ttk.Entry(f_msg, textvariable=msg_var, style="Cfg.TEntry")
-    msg_entry.grid(row=0, column=0, sticky="ew", pady=(4, 0))
-    ttk.Label(
-        f_msg,
-        text="Mensagem exibida em todas as notificações.",
-        style="Cfg.Subtle.TLabel",
-    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        def validar(*_a):
+            valido = False
+            try:
+                v = int(float(var.get()))
+                valido = minimo <= v <= maximo
+            except (ValueError, TypeError):
+                valido = False
+            if valido:
+                campos_invalidos.discard(chave)
+                entry.configure(border_color=theme.COR_BORDA)
+                erro_lbl.configure(text="")
+            else:
+                campos_invalidos.add(chave)
+                entry.configure(border_color=theme.COR_ERRO)
+                erro_lbl.configure(text=f"Use um número entre {minimo} e {maximo}.")
+            _atualizar_estado_salvar()
 
-    f_temp = ttk.LabelFrame(tab_geral, text="  Temporização  ", padding=16, style="CfgCard.TLabelframe")
-    f_temp.pack(fill="x", pady=(0, 0))
-    f_temp.columnconfigure(0, weight=1)
-    f_temp.columnconfigure(1, weight=1)
+        var.trace_add("write", validar)
+        validar()
+        return wrapper
 
-    g_temp = ttk.Frame(f_temp, style="CfgCard.TFrame")
-    g_temp.grid(row=0, column=0, columnspan=2, sticky="ew", pady=4)
-    g_temp.columnconfigure(0, weight=1)
-    g_temp.columnconfigure(1, weight=1)
-
-    col_int = ttk.Frame(g_temp, style="CfgCard.TFrame")
-    col_int.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-    ttk.Label(col_int, text="Intervalo entre lembretes (min)", style="CfgCard.TLabel").pack(anchor="w")
-    ttk.Spinbox(col_int, textvariable=interval_var, from_=1, to=120, width=8, style="Cfg.TSpinbox").pack(anchor="w", pady=(4, 0))
-
-    col_dur = ttk.Frame(g_temp, style="CfgCard.TFrame")
-    col_dur.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-    ttk.Label(col_dur, text="Duração do popup na tela (seg)", style="CfgCard.TLabel").pack(anchor="w")
-    ttk.Spinbox(col_dur, textvariable=duration_var, from_=3, to=60, width=8, style="Cfg.TSpinbox").pack(anchor="w", pady=(4, 0))
-
-    # ========= Aba Notificação =========
-    f_notif = ttk.LabelFrame(tab_notif, text="  Exibição  ", padding=16, style="CfgCard.TLabelframe")
-    f_notif.pack(fill="x", pady=(0, 12))
-    f_notif.columnconfigure(0, weight=1)
-
-    ttk.Label(f_notif, text="Posição na tela", style="CfgCard.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
-    row_pos0 = ttk.Frame(f_notif, style="CfgCard.TFrame")
-    row_pos0.grid(row=1, column=0, sticky="ew", pady=2)
-    ttk.Radiobutton(
-        row_pos0, text="Aleatório (inclui centro)",
-        variable=pos_var, value="random", style="Cfg.TRadiobutton"
-    ).pack(anchor="w")
-    row_pos1 = ttk.Frame(f_notif, style="CfgCard.TFrame")
-    row_pos1.grid(row=2, column=0, sticky="ew", pady=2)
-    row_pos2 = ttk.Frame(f_notif, style="CfgCard.TFrame")
-    row_pos2.grid(row=3, column=0, sticky="ew", pady=2)
-    ttk.Radiobutton(row_pos1, text="Superior direito", variable=pos_var, value="top-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos1, text="Superior esquerdo", variable=pos_var, value="top-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos2, text="Inferior direito", variable=pos_var, value="bottom-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos2, text="Inferior esquerdo", variable=pos_var, value="bottom-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos2, text="Centro", variable=pos_var, value="center", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-
-    ttk.Checkbutton(
-        f_notif, text="Cobrir toda a tela ao exibir o lembrete",
-        variable=fullscreen_var, style="Cfg.TCheckbutton"
-    ).grid(row=4, column=0, sticky="w", pady=(10, 0))
-    ttk.Checkbutton(
-        f_notif, text="Parar áudio ao fechar o popup (recomendado para áudios longos)",
-        variable=stop_audio_var, style="Cfg.TCheckbutton"
-    ).grid(row=5, column=0, sticky="w", pady=(8, 0))
-
-    f_gif = tk.LabelFrame(
-        tab_notif,
-        text="  GIFs  ",
-        bg=CFG_CARD,
-        fg=CFG_ACCENT,
-        font=("Segoe UI", 11, "bold"),
-        padx=16,
-        pady=16,
-        relief=tk.SOLID,
-        bd=1,
-        highlightthickness=0,
+    # ========= Abas =========
+    tabview = ctk.CTkTabview(
+        main, fg_color=theme.COR_CARD,
+        segmented_button_fg_color=theme.COR_CARD_2,
+        segmented_button_selected_color=theme.COR_BOTAO,
+        segmented_button_selected_hover_color=theme.COR_BOTAO_HOVER,
+        segmented_button_unselected_color=theme.COR_CARD_2,
+        text_color=theme.COR_TEXTO,
     )
-    f_gif.pack(fill="both", expand=True)
-    f_gif.columnconfigure(0, weight=1)
-    f_gif.rowconfigure(7, weight=1)
+    tabview.pack(fill="both", expand=True, pady=(0, 10))
 
-    ttk.Radiobutton(
-        f_gif, text="Usar notificação padrão (texto e cores)",
-        variable=visual_mode_var, value="notification", style="Cfg.TRadiobutton"
-    ).grid(row=0, column=0, sticky="w", pady=2)
-    ttk.Radiobutton(
-        f_gif, text="Usar GIF animado",
-        variable=visual_mode_var, value="gif", style="Cfg.TRadiobutton"
-    ).grid(row=1, column=0, sticky="w", pady=2)
+    tab_geral = tabview.add("Geral")
+    tab_msg = tabview.add("Mensagem")
+    tab_visual = tabview.add("Visual/GIF")
+    tab_pos = tabview.add("Posição")
+    tab_cores = tabview.add("Cores")
+    tab_anim = tabview.add("Animação")
+    tab_audio = tabview.add("Áudio")
+    tab_avancado = tabview.add("Avançado")
 
-    row_gif_mode = tk.Frame(f_gif, bg=CFG_CARD)
-    row_gif_mode.grid(row=2, column=0, sticky="w", pady=(8, 2))
-    ttk.Radiobutton(
-        row_gif_mode, text="GIF fixo", variable=gif_mode_var, value="single", style="Cfg.TRadiobutton"
-    ).pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(
-        row_gif_mode, text="Aleatório do histórico", variable=gif_mode_var, value="random_history", style="Cfg.TRadiobutton"
-    ).pack(side="left", padx=(0, 12))
+    # ---- Geral (general: interval_minutes, popup_duration_seconds) ----
+    f_geral = _card(tab_geral)
+    f_geral.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_geral, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    linha = ctk.CTkFrame(inner, fg_color="transparent")
+    linha.pack(fill="x")
+    col1 = ctk.CTkFrame(linha, fg_color="transparent")
+    col1.pack(side="left", padx=(0, 32))
+    _rotulo(col1, "Intervalo entre lembretes (min)").pack(anchor="w")
+    _campo_numerico(col1, "interval", interval_var, 1, 120).pack(anchor="w", pady=(4, 0))
+    col2 = ctk.CTkFrame(linha, fg_color="transparent")
+    col2.pack(side="left")
+    _rotulo(col2, "Duração do popup na tela (seg)").pack(anchor="w")
+    _campo_numerico(col2, "duration", duration_var, 3, 60).pack(anchor="w", pady=(4, 0))
 
-    row_gif_fit = tk.Frame(f_gif, bg=CFG_CARD)
-    row_gif_fit.grid(row=3, column=0, sticky="w", pady=(4, 2))
-    tk.Label(
-        row_gif_fit,
-        text="Ajuste do GIF:",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).pack(side="left", padx=(0, 8))
-    ttk.Radiobutton(
-        row_gif_fit, text="Ajustar inteiro", variable=gif_fit_mode_var, value="contain", style="Cfg.TRadiobutton"
-    ).pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(
-        row_gif_fit, text="Preencher área (pode cortar)", variable=gif_fit_mode_var, value="cover", style="Cfg.TRadiobutton"
-    ).pack(side="left", padx=(0, 12))
+    # ---- Mensagem (message: text, font_size, effect) ----
+    f_msg = _card(tab_msg)
+    f_msg.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_msg, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    _rotulo(inner, "Mensagem principal").pack(anchor="w")
+    ctk.CTkEntry(inner, textvariable=msg_var, font=theme.fonte(11)).pack(fill="x", pady=(6, 4))
+    _subtitulo(inner, "Mensagem exibida em todas as notificações.").pack(anchor="w")
 
-    row_gif_zoom = tk.Frame(f_gif, bg=CFG_CARD)
-    row_gif_zoom.grid(row=4, column=0, sticky="w", pady=(2, 2))
-    tk.Label(
-        row_gif_zoom,
-        text="Zoom em tela cheia (%)",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).pack(side="left", padx=(0, 8))
-    ttk.Spinbox(
-        row_gif_zoom,
-        textvariable=gif_zoom_var,
-        from_=100,
-        to=300,
-        width=6,
-        style="Cfg.TSpinbox",
-    ).pack(side="left")
+    linha_fonte = ctk.CTkFrame(inner, fg_color="transparent")
+    linha_fonte.pack(fill="x", pady=(16, 0))
+    _rotulo(linha_fonte, "Tamanho da fonte").pack(anchor="w")
+    _campo_numerico(linha_fonte, "font_size", font_var, 10, 24).pack(anchor="w", pady=(4, 0))
 
-    row_gif_path = tk.Frame(f_gif, bg=CFG_CARD)
-    row_gif_path.grid(row=5, column=0, sticky="ew", pady=(8, 2))
-    row_gif_path.columnconfigure(0, weight=1)
-    gif_entry = tk.Entry(
-        row_gif_path,
-        textvariable=gif_path_var,
-        font=("Segoe UI", 9),
-        bg="white",
-        fg=CFG_TEXTO,
-        relief="solid",
-        bd=1,
-    )
-    gif_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+    f_efeito = _card(tab_msg)
+    f_efeito.pack(fill="x", padx=4, pady=(8, 4))
+    inner2 = ctk.CTkFrame(f_efeito, fg_color="transparent")
+    inner2.pack(fill="x", padx=16, pady=16)
+    _rotulo(inner2, "Efeito na mensagem").pack(anchor="w", pady=(0, 8))
+    for val, lbl in _FUN_MODE_OPCOES:
+        ctk.CTkRadioButton(inner2, text=lbl, variable=fun_mode_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
 
-    gif_actions = tk.Frame(f_gif, bg=CFG_CARD)
-    gif_actions.grid(row=6, column=0, sticky="ew", pady=(4, 6))
+    # ---- Visual/GIF (visual: mode, fullscreen, fit_mode, gif_zoom_percent + gifs) ----
+    f_visual = _card(tab_visual)
+    f_visual.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_visual, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    ctk.CTkRadioButton(inner, text="Usar notificação padrão (texto e cores)", variable=visual_mode_var, value="notification", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    ctk.CTkRadioButton(inner, text="Usar GIF animado", variable=visual_mode_var, value="gif", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    ctk.CTkCheckBox(inner, text="Cobrir toda a tela ao exibir o lembrete (multi-monitor se houver 2+ telas)", variable=fullscreen_var, font=theme.fonte(11)).pack(anchor="w", pady=(10, 2))
+    ctk.CTkCheckBox(inner, text="Parar áudio ao fechar o popup (recomendado para áudios longos)", variable=stop_audio_var, font=theme.fonte(11)).pack(anchor="w", pady=2)
 
-    row_hist = tk.Frame(f_gif, bg=CFG_CARD)
-    row_hist.grid(row=7, column=0, sticky="nsew", pady=(4, 0))
-    row_hist.columnconfigure(0, weight=1)
-    row_hist.rowconfigure(1, weight=1)
-    tk.Label(
-        row_hist,
-        text="Histórico de GIFs salvos",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).grid(row=0, column=0, sticky="w", pady=(0, 4))
-    hist_wrap = tk.Frame(row_hist, bg=CFG_CARD)
-    hist_wrap.grid(row=1, column=0, sticky="nsew")
-    hist_wrap.columnconfigure(0, weight=1)
-    hist_wrap.rowconfigure(0, weight=1)
+    f_gif = _card(tab_visual)
+    f_gif.pack(fill="both", expand=True, padx=4, pady=(8, 4))
+    corpo_gif = ctk.CTkFrame(f_gif, fg_color="transparent")
+    corpo_gif.pack(fill="both", expand=True, padx=16, pady=16)
+    corpo_gif.grid_columnconfigure(0, weight=1)
+    corpo_gif.grid_columnconfigure(1, weight=0)
+
+    coluna_gif = ctk.CTkFrame(corpo_gif, fg_color="transparent")
+    coluna_gif.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+
+    linha_modo_gif = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    linha_modo_gif.pack(anchor="w", pady=(0, 8))
+    ctk.CTkRadioButton(linha_modo_gif, text="GIF fixo", variable=gif_mode_var, value="single", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
+    ctk.CTkRadioButton(linha_modo_gif, text="Aleatório do histórico", variable=gif_mode_var, value="random_history", font=theme.fonte(11)).pack(side="left")
+
+    linha_fit = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    linha_fit.pack(anchor="w", pady=(0, 8))
+    _rotulo(linha_fit, "Ajuste:", font=theme.fonte(10), text_color=theme.COR_SUBTEXTO).pack(side="left", padx=(0, 8))
+    ctk.CTkRadioButton(linha_fit, text="Ajustar inteiro", variable=gif_fit_mode_var, value="contain", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
+    ctk.CTkRadioButton(linha_fit, text="Preencher (pode cortar)", variable=gif_fit_mode_var, value="cover", font=theme.fonte(11)).pack(side="left")
+
+    linha_zoom = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    linha_zoom.pack(anchor="w", pady=(0, 10))
+    _rotulo(linha_zoom, "Zoom em tela cheia (%)", font=theme.fonte(10), text_color=theme.COR_SUBTEXTO).pack(side="left", padx=(0, 8))
+    zoom_entry = ctk.CTkEntry(linha_zoom, textvariable=gif_zoom_var, width=60, font=theme.fonte(11))
+    zoom_entry.pack(side="left")
+
+    linha_path = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    linha_path.pack(fill="x", pady=(0, 8))
+    gif_entry = ctk.CTkEntry(linha_path, textvariable=gif_path_var, font=theme.fonte(10))
+    gif_entry.pack(fill="x")
+
+    gif_actions = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    gif_actions.pack(fill="x", pady=(0, 10))
+
+    _rotulo(coluna_gif, "Histórico de GIFs salvos", font=theme.fonte(10), text_color=theme.COR_SUBTEXTO).pack(anchor="w", pady=(0, 4))
+    hist_wrap = ctk.CTkFrame(coluna_gif, fg_color="transparent")
+    hist_wrap.pack(fill="both", expand=True)
     sb_hist = tk.Scrollbar(hist_wrap, orient="vertical", width=14)
     lb_hist = tk.Listbox(
-        hist_wrap,
-        selectmode="extended",
-        height=8,
-        bg="white",
-        fg=CFG_TEXTO,
-        selectbackground=CFG_ACCENT,
-        selectforeground="white",
-        font=("Segoe UI", 9),
-        highlightthickness=1,
-        highlightbackground=CFG_BORDER,
-        relief="solid",
-        yscrollcommand=sb_hist.set,
+        hist_wrap, selectmode="extended", height=6,
+        bg=theme.COR_FUNDO, fg=theme.COR_TEXTO,
+        selectbackground=theme.COR_BOTAO, selectforeground="white",
+        font=(theme.FONTE_FAMILIA, 9), highlightthickness=1,
+        highlightbackground=theme.COR_BORDA, relief="flat",
+        yscrollcommand=sb_hist.set, bd=0,
     )
     sb_hist.config(command=lb_hist.yview)
-    lb_hist.grid(row=0, column=0, sticky="nsew")
-    sb_hist.grid(row=0, column=1, sticky="ns")
+    lb_hist.pack(side="left", fill="both", expand=True)
+    sb_hist.pack(side="left", fill="y")
+
+    # Coluna de pré-visualização animada do GIF selecionado.
+    coluna_preview = ctk.CTkFrame(corpo_gif, fg_color=theme.COR_FUNDO, corner_radius=theme.RAIO_BORDA, width=240, height=180)
+    coluna_preview.grid(row=0, column=1, sticky="n")
+    coluna_preview.grid_propagate(False)
+    preview_label = tk.Label(coluna_preview, bg=theme.COR_FUNDO, bd=0, highlightthickness=0)
+    preview_label.place(relx=0.5, rely=0.42, anchor="center")
+    preview_status_var = ctk.StringVar(value="Nenhum GIF selecionado.")
+    ctk.CTkLabel(
+        coluna_preview, textvariable=preview_status_var, font=theme.fonte(9),
+        text_color=theme.COR_SUBTEXTO, wraplength=210, justify="center",
+    ).place(relx=0.5, rely=0.9, anchor="center")
+
+    _preview_after_id = {"id": None}
+
+    def _parar_preview():
+        if _preview_after_id["id"] is not None:
+            try:
+                preview_label.after_cancel(_preview_after_id["id"])
+            except Exception:
+                pass
+            _preview_after_id["id"] = None
+
+    def atualizar_preview_gif(*_a):
+        _parar_preview()
+        caminho = gif_path_var.get().strip()
+        try:
+            preview_label.configure(image="")
+        except tk.TclError:
+            return
+        if not caminho or not os.path.isfile(caminho):
+            preview_status_var.set("Nenhum GIF selecionado.")
+            return
+        preview_status_var.set("Carregando pré-visualização…")
+        root.update_idletasks()
+        frames, duracoes = carregar_frames_para_preview(caminho, 220, 130, root, theme.COR_FUNDO)
+        if not frames:
+            preview_status_var.set("Não foi possível pré-visualizar este GIF.")
+            return
+        preview_status_var.set("")
+
+        def tick(i=0):
+            if not preview_label.winfo_exists():
+                return
+            i = i % len(frames)
+            try:
+                preview_label.configure(image=frames[i])
+                preview_label.image = frames[i]
+            except tk.TclError:
+                return
+            delay = duracoes[i] if i < len(duracoes) else 80
+            _preview_after_id["id"] = preview_label.after(delay, lambda: tick(i + 1))
+
+        tick(0)
+
+    gif_path_var.trace_add("write", atualizar_preview_gif)
 
     def recarregar_historico_gif(selecao=None):
         lb_hist.delete(0, tk.END)
@@ -376,8 +397,7 @@ def abrir_configuracoes(parent=None):
 
     def escolher_gif_explorer():
         path = filedialog.askopenfilename(
-            parent=root,
-            title="Selecionar GIF animado",
+            parent=root, title="Selecionar GIF animado",
             filetypes=[("GIF animado", "*.gif"), ("GIF", "*.gif"), ("Todos", "*.*")],
         )
         if not path:
@@ -392,8 +412,7 @@ def abrir_configuracoes(parent=None):
 
     def adicionar_gifs_explorer():
         paths = filedialog.askopenfilenames(
-            parent=root,
-            title="Adicionar GIFs ao histórico",
+            parent=root, title="Adicionar GIFs ao histórico",
             filetypes=[("GIF animado", "*.gif"), ("GIF", "*.gif"), ("Todos", "*.*")],
         )
         if not paths:
@@ -444,135 +463,112 @@ def abrir_configuracoes(parent=None):
 
     lb_hist.bind("<Double-Button-1>", lambda _e: usar_gif_selecionado_hist())
 
-    _cfg_btn_sec(gif_actions, text="Escolher GIF…", command=escolher_gif_explorer).pack(side="left", padx=(0, 8), pady=2)
-    _cfg_btn_sec(gif_actions, text="+ Adicionar vários…", command=adicionar_gifs_explorer).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(gif_actions, text="Usar selecionado", command=usar_gif_selecionado_hist).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(gif_actions, text="Remover do histórico", command=remover_gif_selecionado_hist).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(gif_actions, text="Limpar histórico", command=limpar_historico_gif).pack(side="left", padx=8, pady=2)
+    _botao_sec(gif_actions, text="Escolher GIF…", command=escolher_gif_explorer, width=110).pack(side="left", padx=(0, 6), pady=2)
+    _botao_sec(gif_actions, text="+ Adicionar vários…", command=adicionar_gifs_explorer, width=130).pack(side="left", padx=6, pady=2)
+    _botao_sec(gif_actions, text="Usar selecionado", command=usar_gif_selecionado_hist, width=120).pack(side="left", padx=6, pady=2)
+    _botao_sec(gif_actions, text="Remover", command=remover_gif_selecionado_hist, width=90).pack(side="left", padx=6, pady=2)
+    _botao_sec(gif_actions, text="Limpar histórico", command=limpar_historico_gif, width=120).pack(side="left", padx=6, pady=2)
 
-    # ========= Aba Aparência (somente visual da notificação padrão) =========
-    f_ap = ttk.LabelFrame(tab_ap, text="  Aparência  ", padding=16, style="CfgCard.TLabelframe")
-    f_ap.pack(fill="both", expand=True)
-    f_ap.columnconfigure(0, weight=1)
+    def atualizar_estado_controles_gif(*_a):
+        gif_on = visual_mode_var.get() == "gif"
+        estado = "normal" if gif_on else "disabled"
+        for w in (zoom_entry,):
+            w.configure(state=estado)
+        for child in linha_fit.winfo_children():
+            if isinstance(child, ctk.CTkRadioButton):
+                child.configure(state=estado)
+        for child in gif_actions.winfo_children():
+            child.configure(state=estado)
+        lb_hist.configure(state=estado)
+        if gif_on and gif_mode_var.get() == "random_history":
+            gif_entry.configure(state="disabled")
+        elif gif_on:
+            gif_entry.configure(state="normal")
+        else:
+            gif_entry.configure(state="disabled")
 
-    ttk.Checkbutton(f_ap, text="Cores aleatórias a cada popup", variable=random_colors_var, style="Cfg.TCheckbutton").grid(row=0, column=0, sticky="w")
+    visual_mode_var.trace_add("write", atualizar_estado_controles_gif)
+    gif_mode_var.trace_add("write", atualizar_estado_controles_gif)
+    atualizar_estado_controles_gif()
+    atualizar_preview_gif()
 
-    ttk.Label(f_ap, text="Paleta de cores", style="CfgCard.TLabel").grid(row=1, column=0, sticky="w", pady=(12, 4))
-    row_pal1 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_pal1.grid(row=2, column=0, sticky="ew", pady=2)
-    row_pal2 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_pal2.grid(row=3, column=0, sticky="ew", pady=2)
-    nomes_paletas = list(PALETAS.keys())
-    for p in nomes_paletas[:3]:
-        ttk.Radiobutton(row_pal1, text=p, variable=palette_var, value=p, style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    for p in nomes_paletas[3:]:
-        ttk.Radiobutton(row_pal2, text=p, variable=palette_var, value=p, style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    # ---- Posição (position: value) — variável única ----
+    f_pos = _card(tab_pos)
+    f_pos.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_pos, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    _rotulo(inner, "Posição do popup na tela").pack(anchor="w", pady=(0, 8))
+    for val, lbl in _POS_OPCOES:
+        ctk.CTkRadioButton(inner, text=lbl, variable=pos_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _subtitulo(inner, "Vale tanto para a notificação normal quanto para o modo tela cheia (sem GIF).").pack(anchor="w", pady=(8, 0))
 
-    ttk.Label(f_ap, text="Pré-visualização", style="CfgCard.TLabel").grid(row=4, column=0, sticky="w", pady=(12, 4))
-    preview_frame = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    preview_frame.grid(row=5, column=0, sticky="ew", pady=4)
+    # ---- Cores (colors: random, palette) ----
+    f_cores = _card(tab_cores)
+    f_cores.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_cores, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    ctk.CTkCheckBox(inner, text="Cores aleatórias a cada popup", variable=random_colors_var, font=theme.fonte(11)).pack(anchor="w")
 
-    def atualizar_preview():
+    _rotulo(inner, "Paleta de cores", font=theme.fonte(11)).pack(anchor="w", pady=(14, 6))
+    linha_paletas = ctk.CTkFrame(inner, fg_color="transparent")
+    linha_paletas.pack(anchor="w")
+    for nome in PALETAS:
+        ctk.CTkRadioButton(linha_paletas, text=nome, variable=palette_var, value=nome, font=theme.fonte(11)).pack(side="left", padx=(0, 14))
+
+    _rotulo(inner, "Pré-visualização", font=theme.fonte(11)).pack(anchor="w", pady=(14, 6))
+    preview_frame = ctk.CTkFrame(inner, fg_color="transparent")
+    preview_frame.pack(anchor="w")
+
+    def atualizar_preview_cor():
         for w in preview_frame.winfo_children():
             w.destroy()
         cores = PALETAS.get(palette_var.get(), PALETAS["Pastel"])
         for c in cores[:12]:
-            sw = tk.Frame(preview_frame, bg=CFG_BORDER, padx=1, pady=1)
-            sw.pack(side="left", padx=3, pady=2)
-            tk.Label(sw, text=" ", bg=c, width=3, height=1, relief="flat").pack()
-    atualizar_preview()
-    palette_var.trace_add("write", lambda *a: atualizar_preview())
+            ctk.CTkFrame(preview_frame, fg_color=c, width=26, height=26, corner_radius=theme.RAIO_BORDA_PEQUENO).pack(side="left", padx=3)
 
-    ttk.Label(f_ap, text="Animação de entrada", style="CfgCard.TLabel").grid(row=6, column=0, sticky="w", pady=(12, 4))
-    anim_var = tk.StringVar(value=cfg.get("popup_animation", "slide"))
-    anim_opts = [
-        ("random", "Aleatória"),
-        ("slide", "Deslizar"),
-        ("slide-vertical", "Vertical"),
-        ("scale", "Zoom"),
-        ("bounce", "Bounce"),
-        ("elastic", "Elástico"),
-        ("drop", "Cair"),
-        ("fade", "Fade"),
-        ("none", "Nenhuma"),
-    ]
-    row_anim1 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_anim1.grid(row=7, column=0, sticky="ew", pady=2)
-    for opt, lbl in anim_opts[:5]:
-        ttk.Radiobutton(row_anim1, text=lbl, variable=anim_var, value=opt, style="Cfg.TRadiobutton").pack(side="left", padx=(0, 10))
-    row_anim2 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_anim2.grid(row=8, column=0, sticky="ew", pady=2)
-    for opt, lbl in anim_opts[5:]:
-        ttk.Radiobutton(row_anim2, text=lbl, variable=anim_var, value=opt, style="Cfg.TRadiobutton").pack(side="left", padx=(0, 10))
+    atualizar_preview_cor()
+    palette_var.trace_add("write", lambda *a: atualizar_preview_cor())
 
-    ttk.Label(f_ap, text="Posição na tela", style="CfgCard.TLabel").grid(row=9, column=0, sticky="w", pady=(14, 4))
-    pos_saved = cfg.get("popup_position", "top-right")
-    if pos_saved not in CANTOS_POPUP + ("random",):
-        pos_saved = "top-right"
-    pos_var = tk.StringVar(value=pos_saved)
-    row_pos0 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_pos0.grid(row=10, column=0, sticky="ew", pady=2)
-    ttk.Radiobutton(
-        row_pos0, text="Aleatório (canto diferente a cada lembrete)",
-        variable=pos_var, value="random", style="Cfg.TRadiobutton"
-    ).pack(anchor="w")
-    row_pos1 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_pos1.grid(row=11, column=0, sticky="ew", pady=2)
-    row_pos2 = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_pos2.grid(row=12, column=0, sticky="ew", pady=2)
-    ttk.Radiobutton(row_pos1, text="Superior direito", variable=pos_var, value="top-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos1, text="Superior esquerdo", variable=pos_var, value="top-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos2, text="Inferior direito", variable=pos_var, value="bottom-right", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
-    ttk.Radiobutton(row_pos2, text="Inferior esquerdo", variable=pos_var, value="bottom-left", style="Cfg.TRadiobutton").pack(side="left", padx=(0, 12))
+    # ---- Animação (animation: type) ----
+    f_anim = _card(tab_anim)
+    f_anim.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_anim, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    _rotulo(inner, "Animação de entrada (popup não-fullscreen)").pack(anchor="w", pady=(0, 8))
+    grade_anim = ctk.CTkFrame(inner, fg_color="transparent")
+    grade_anim.pack(anchor="w")
+    for idx, (val, lbl) in enumerate(_ANIM_OPCOES):
+        ctk.CTkRadioButton(grade_anim, text=lbl, variable=anim_var, value=val, font=theme.fonte(11)).grid(
+            row=idx // 3, column=idx % 3, sticky="w", padx=(0, 20), pady=4
+        )
 
-    row_font = ttk.Frame(f_ap, style="CfgCard.TFrame")
-    row_font.grid(row=13, column=0, sticky="ew", pady=(12, 0))
-    ttk.Label(row_font, text="Tamanho da fonte", style="CfgCard.TLabel").pack(side="left", padx=(0, 12))
-    ttk.Spinbox(row_font, textvariable=font_var, from_=10, to=24, width=6, style="Cfg.TSpinbox").pack(side="left")
+    # ---- Áudio (audio: mode, selected, volume, stop_on_close) ----
+    f_audio = _card(tab_audio)
+    f_audio.pack(fill="both", expand=True, padx=4, pady=4)
+    inner = ctk.CTkFrame(f_audio, fg_color="transparent")
+    inner.pack(fill="both", expand=True, padx=16, pady=16)
 
-    # ========= Aba Áudio =========
-    f_aud = tk.LabelFrame(
-        tab_aud,
-        text="  Áudio  ",
-        bg=CFG_CARD,
-        fg=CFG_ACCENT,
-        font=("Segoe UI", 11, "bold"),
-        padx=16,
-        pady=16,
-        relief=tk.SOLID,
-        bd=1,
-        highlightthickness=0,
-    )
-    f_aud.pack(fill="both", expand=True)
-    f_aud.columnconfigure(0, weight=1)
-    f_aud.rowconfigure(4, weight=1)
+    ctk.CTkRadioButton(inner, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    ctk.CTkRadioButton(inner, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", font=theme.fonte(11)).pack(anchor="w", pady=2)
 
-    ttk.Radiobutton(f_aud, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", style="Cfg.TRadiobutton").grid(row=0, column=0, sticky="w", pady=2)
-    ttk.Radiobutton(f_aud, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", style="Cfg.TRadiobutton").grid(row=1, column=0, sticky="w", pady=2)
-
-    vol_frame = tk.Frame(f_aud, bg=CFG_CARD)
-    vol_frame.grid(row=2, column=0, sticky="ew", pady=(10, 4))
-    vol_frame.columnconfigure(0, weight=1)
-    tk.Label(vol_frame, text="Volume das notificações", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10)).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
-    vol_pct_label = tk.Label(vol_frame, text=f"{_vol_saved}%", bg=CFG_CARD, fg=CFG_TEXTO, font=("Segoe UI", 10), width=6)
-    vol_pct_label.grid(row=1, column=1, sticky="e", padx=(10, 0))
+    vol_frame = ctk.CTkFrame(inner, fg_color="transparent")
+    vol_frame.pack(fill="x", pady=(12, 6))
+    linha_vol = ctk.CTkFrame(vol_frame, fg_color="transparent")
+    linha_vol.pack(fill="x")
+    _rotulo(linha_vol, "Volume das notificações").pack(side="left")
+    vol_pct_label = _rotulo(linha_vol, f"{int(_vol_saved)}%", anchor="e")
+    vol_pct_label.pack(side="right")
 
     def atualizar_label_vol(*_a):
         try:
             v = int(round(float(vol_var.get())))
-        except tk.TclError:
+        except (tk.TclError, ValueError):
             return
-        vol_pct_label.config(text=f"{v}%")
+        vol_pct_label.configure(text=f"{v}%")
 
     vol_var.trace_add("write", atualizar_label_vol)
-    ttk.Scale(vol_frame, from_=0, to=100, variable=vol_var, orient="horizontal").grid(row=1, column=0, sticky="ew")
-    tk.Label(
-        vol_frame,
-        text="Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+    ctk.CTkSlider(vol_frame, from_=0, to=100, variable=vol_var, number_of_steps=100).pack(fill="x", pady=(6, 0))
+    _subtitulo(vol_frame, "Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).").pack(anchor="w", pady=(6, 0))
 
     def cfg_com_volume_atual():
         c = {**carregar_config()}
@@ -582,38 +578,21 @@ def abrir_configuracoes(parent=None):
             c["notification_volume"] = CONFIG_PADRAO["notification_volume"]
         return c
 
-    tk.Label(
-        f_aud,
-        text="Lista de arquivos — use a barra de rolagem à direita se houver mais itens.",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).grid(row=3, column=0, sticky="w", pady=(6, 2))
-
-    list_wrap = tk.Frame(f_aud, bg=CFG_CARD)
-    list_wrap.grid(row=4, column=0, sticky="nsew", pady=4)
-    list_wrap.columnconfigure(0, weight=1)
-    list_wrap.rowconfigure(0, weight=1)
-
+    _subtitulo(inner, "Lista de arquivos — use a barra de rolagem se houver mais itens.").pack(anchor="w", pady=(10, 4))
+    list_wrap = ctk.CTkFrame(inner, fg_color="transparent")
+    list_wrap.pack(fill="both", expand=True, pady=4)
     sb_aud = tk.Scrollbar(list_wrap, orient="vertical", width=16)
     lb = tk.Listbox(
-        list_wrap,
-        selectmode="extended",
-        height=16,
-        bg="white",
-        fg=CFG_TEXTO,
-        selectbackground=CFG_ACCENT,
-        selectforeground="white",
-        font=("Segoe UI", 10),
-        highlightthickness=1,
-        highlightbackground=CFG_BORDER,
-        relief="solid",
-        activestyle="dotbox",
-        yscrollcommand=sb_aud.set,
+        list_wrap, selectmode="extended", height=10,
+        bg=theme.COR_FUNDO, fg=theme.COR_TEXTO,
+        selectbackground=theme.COR_BOTAO, selectforeground="white",
+        font=(theme.FONTE_FAMILIA, 10), highlightthickness=1,
+        highlightbackground=theme.COR_BORDA, relief="flat",
+        activestyle="dotbox", yscrollcommand=sb_aud.set, bd=0,
     )
     sb_aud.config(command=lb.yview)
-    lb.grid(row=0, column=0, sticky="nsew")
-    sb_aud.grid(row=0, column=1, sticky="ns")
+    lb.pack(side="left", fill="both", expand=True)
+    sb_aud.pack(side="left", fill="y")
 
     selected_audios = cfg.get("selected_audios", [])
 
@@ -665,14 +644,10 @@ def abrir_configuracoes(parent=None):
 
     def adicionar_audios_explorer():
         paths = filedialog.askopenfilenames(
-            parent=root,
-            title="Copiar áudios para a pasta do app",
+            parent=root, title="Copiar áudios para a pasta do app",
             filetypes=[
-                ("Áudio", "*.wav *.mp3 *.ogg"),
-                ("Wave", "*.wav"),
-                ("MP3", "*.mp3"),
-                ("Ogg", "*.ogg"),
-                ("Todos", "*.*"),
+                ("Áudio", "*.wav *.mp3 *.ogg"), ("Wave", "*.wav"),
+                ("MP3", "*.mp3"), ("Ogg", "*.ogg"), ("Todos", "*.*"),
             ],
         )
         if not paths:
@@ -690,8 +665,7 @@ def abrir_configuracoes(parent=None):
             try:
                 if os.path.exists(dst):
                     if not messagebox.askyesno(
-                        "Substituir?",
-                        f'Já existe "{nome}" na pasta audios.\n\nSubstituir pelo arquivo escolhido?',
+                        "Substituir?", f'Já existe "{nome}" na pasta audios.\n\nSubstituir pelo arquivo escolhido?',
                     ):
                         continue
                 shutil.copy2(src, dst)
@@ -715,7 +689,6 @@ def abrir_configuracoes(parent=None):
         if not sel:
             messagebox.showinfo("Áudio", "Selecione um ou mais arquivos na lista para remover.")
             return
-
         nomes = [lb.get(i) for i in sel]
         if len(nomes) == 1:
             msg_confirm = f'Deseja remover o arquivo "{nomes[0]}" da pasta audios?'
@@ -723,14 +696,9 @@ def abrir_configuracoes(parent=None):
             preview = ", ".join(nomes[:4])
             if len(nomes) > 4:
                 preview += ", ..."
-            msg_confirm = (
-                f"Deseja remover {len(nomes)} arquivos da pasta audios?\n\n"
-                f"Selecionados: {preview}"
-            )
-
+            msg_confirm = f"Deseja remover {len(nomes)} arquivos da pasta audios?\n\nSelecionados: {preview}"
         if not messagebox.askyesno("Confirmar remoção", msg_confirm):
             return
-
         removidos = 0
         falhas = []
         pasta = pasta_audios()
@@ -742,80 +710,45 @@ def abrir_configuracoes(parent=None):
                     removidos += 1
             except Exception as e:
                 falhas.append(f"{nome}: {e}")
-
         recarregar_lista_audios()
         if falhas:
             detalhes = "\n".join(falhas[:6])
             if len(falhas) > 6:
                 detalhes += "\n..."
-            messagebox.showwarning(
-                "Áudio",
-                f"Removidos: {removidos}\nFalhas: {len(falhas)}\n\n{detalhes}",
-            )
+            messagebox.showwarning("Áudio", f"Removidos: {removidos}\nFalhas: {len(falhas)}\n\n{detalhes}")
         else:
             messagebox.showinfo("Áudio", f"Arquivos removidos: {removidos}.")
 
-    aud_actions = tk.Frame(f_aud, bg=CFG_CARD)
-    aud_actions.grid(row=5, column=0, sticky="ew", pady=(10, 4))
-    _cfg_btn_sec(aud_actions, text="▶ Ouvir seleção", command=reproduzir_selecionado).pack(side="left", padx=(0, 8), pady=2)
-    _cfg_btn_sec(aud_actions, text="■ Parar som", command=parar_som).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(aud_actions, text="+ Adicionar arquivos…", command=adicionar_audios_explorer).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(aud_actions, text="🗑 Remover selecionado(s)", command=remover_audios_selecionados).pack(side="left", padx=8, pady=2)
-    _cfg_btn_sec(aud_actions, text="Abrir pasta no Explorer", command=abrir_pasta_audios_cmd).pack(side="left", padx=8, pady=2)
+    aud_actions = ctk.CTkFrame(inner, fg_color="transparent")
+    aud_actions.pack(fill="x", pady=(10, 4))
+    _botao_sec(aud_actions, text="▶ Ouvir", command=reproduzir_selecionado, width=90).pack(side="left", padx=(0, 6), pady=2)
+    _botao_sec(aud_actions, text="■ Parar", command=parar_som, width=90).pack(side="left", padx=6, pady=2)
+    _botao_sec(aud_actions, text="+ Adicionar…", command=adicionar_audios_explorer, width=110).pack(side="left", padx=6, pady=2)
+    _botao_sec(aud_actions, text="🗑 Remover", command=remover_audios_selecionados, width=100).pack(side="left", padx=6, pady=2)
+    _botao_sec(aud_actions, text="Abrir pasta", command=abrir_pasta_audios_cmd, width=100).pack(side="left", padx=6, pady=2)
 
-    tk.Label(
-        f_aud,
-        text="Dica: duplo clique em um item para ouvir a prévia.",
-        bg=CFG_CARD,
-        fg=CFG_SUB,
-        font=("Segoe UI", 9),
-    ).grid(row=6, column=0, sticky="w", pady=(2, 0))
+    _subtitulo(inner, "Dica: duplo clique em um item para ouvir a prévia. Pasta: " + pasta_audios()).pack(anchor="w", pady=(4, 0))
 
-    tk.Label(f_aud, text="Pasta: " + pasta_audios(), bg=CFG_CARD, fg=CFG_SUB, font=("Segoe UI", 9)).grid(row=7, column=0, sticky="w", pady=(6, 0))
+    # ---- Avançado (window: control_window_title/status/hint) ----
+    f_avancado = _card(tab_avancado)
+    f_avancado.pack(fill="x", padx=4, pady=4)
+    inner = ctk.CTkFrame(f_avancado, fg_color="transparent")
+    inner.pack(fill="x", padx=16, pady=16)
+    _rotulo(inner, "Janela principal").pack(anchor="w")
+    _subtitulo(inner, "Textos da janela de controle (status/lembretes). Antes só dava pra mudar editando o config.json.").pack(anchor="w", pady=(2, 10))
 
-    # ========= Aba Extras =========
-    f_extra = ttk.LabelFrame(tab_extra, text="  Personalização divertida  ", padding=16, style="CfgCard.TLabelframe")
-    f_extra.pack(fill="x")
-    ttk.Radiobutton(f_extra, text="Sem efeito extra", variable=fun_mode_var, value="none", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
-    ttk.Radiobutton(f_extra, text="Brilhos (✨)", variable=fun_mode_var, value="sparkles", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
-    ttk.Radiobutton(f_extra, text="Tema água (💧🫧🌊)", variable=fun_mode_var, value="water", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
-    ttk.Radiobutton(f_extra, text="Modo festa (🎉🥳)", variable=fun_mode_var, value="party", style="Cfg.TRadiobutton").pack(anchor="w", pady=2)
-    ttk.Label(
-        f_extra,
-        text="Aplica um toque visual na mensagem padrão da notificação.",
-        style="Cfg.Subtle.TLabel",
-    ).pack(anchor="w", pady=(8, 0))
+    _rotulo(inner, "Título da janela").pack(anchor="w", pady=(6, 2))
+    ctk.CTkEntry(inner, textvariable=title_var, font=theme.fonte(11)).pack(fill="x")
+    _rotulo(inner, "Texto de status").pack(anchor="w", pady=(10, 2))
+    ctk.CTkEntry(inner, textvariable=status_txt_var, font=theme.fonte(11)).pack(fill="x")
+    _rotulo(inner, "Dica exibida abaixo do status").pack(anchor="w", pady=(10, 2))
+    ctk.CTkEntry(inner, textvariable=hint_var, font=theme.fonte(11)).pack(fill="x")
 
-    def atualizar_estado_controles_notificacao(*_a):
-        gif_on = visual_mode_var.get() == "gif"
-        state = "normal" if gif_on else "disabled"
-        gif_entry.configure(state=state)
-        try:
-            for child in row_gif_zoom.winfo_children():
-                child.configure(state=state)
-        except Exception:
-            pass
-        for child in row_gif_fit.winfo_children():
-            try:
-                child.configure(state=state)
-            except Exception:
-                pass
-        for child in gif_actions.winfo_children():
-            child.configure(state=state)
-        lb_hist.configure(state=state)
-        if gif_on and gif_mode_var.get() == "random_history":
-            gif_entry.configure(state="disabled")
-        elif gif_on:
-            gif_entry.configure(state="normal")
-        else:
-            gif_entry.configure(state="disabled")
-
-    visual_mode_var.trace_add("write", atualizar_estado_controles_notificacao)
-    gif_mode_var.trace_add("write", atualizar_estado_controles_notificacao)
-    atualizar_estado_controles_notificacao()
-
-    # Rodapé fixo
-    btn_frame = tk.Frame(main, bg=CFG_FUNDO, highlightthickness=1, highlightbackground=CFG_BORDER)
+    # ========= Rodapé =========
+    btn_frame = ctk.CTkFrame(main, fg_color=theme.COR_CARD, corner_radius=theme.RAIO_BORDA)
+    btn_frame.pack(fill="x", pady=(0, 0))
+    rodape = ctk.CTkFrame(btn_frame, fg_color="transparent")
+    rodape.pack(fill="x", padx=10, pady=10)
 
     def testar():
         try:
@@ -853,6 +786,9 @@ def abrir_configuracoes(parent=None):
         root.after(100, lambda: mostrar_popup(parent=root, cfg_override=cfg_teste))
 
     def salvar():
+        if campos_invalidos:
+            messagebox.showerror("Erro", "Corrija os campos destacados em vermelho antes de salvar.")
+            return
         try:
             interval = int(interval_var.get())
             duration = int(duration_var.get())
@@ -921,17 +857,22 @@ def abrir_configuracoes(parent=None):
             "audio_mode": audio_mode_var.get(),
             "selected_audios": selected,
             "notification_volume": vol_pct,
+            "control_window_title": title_var.get().strip() or CONFIG_PADRAO["control_window_title"],
+            "control_window_status": status_txt_var.get().strip() or CONFIG_PADRAO["control_window_status"],
+            "control_window_hint": hint_var.get().strip() or CONFIG_PADRAO["control_window_hint"],
         }
         salvar_config(novo_cfg)
+        _parar_preview()
         messagebox.showinfo("Salvo", "Configurações salvas! As mudanças valerão no próximo lembrete.")
         root.destroy()
 
-    _cfg_btn_sec(btn_frame, text="Testar popup", command=testar).pack(side="left", padx=10, pady=10)
-    _cfg_btn_pri(btn_frame, text="Salvar", command=salvar).pack(side="right", padx=10, pady=10)
-    btn_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+    _botao_sec(rodape, text="Testar popup", command=testar, width=140).pack(side="left")
+    btn_salvar = _botao_pri(rodape, text="Salvar", command=salvar, width=140)
+    btn_salvar.pack(side="right")
+    _botao_salvar_ref["widget"] = btn_salvar
+    _atualizar_estado_salvar()
 
     if is_top_level:
         parent.wait_window(root)
     else:
         root.mainloop()
-

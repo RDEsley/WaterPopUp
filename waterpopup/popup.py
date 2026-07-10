@@ -180,6 +180,13 @@ def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain"
         _CACHE_FRAMES_GIF.popitem(last=False)
     return resultado
 
+def carregar_frames_para_preview(caminho_gif: str, largura: int, altura: int, widget_para_cor, cor: str):
+    """API pública para outras telas (ex.: tela de Configurações) mostrarem
+    uma pré-visualização animada de um GIF, sem depender de detalhes
+    internos de cache/decodificação deste módulo."""
+    cor_fundo = _tk_cor_para_rgb(widget_para_cor, cor)
+    return _carregar_frames_gif(caminho_gif, largura, altura, "contain", 1.0, cor_fundo)
+
 def _aplicar_modo_divertido(msg: str, cfg: Dict[str, Any]) -> str:
     modo = str(cfg.get("fun_mode", "none")).strip().lower()
     if modo == "sparkles":

@@ -1,11 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_data_files
 
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    datas=[('audios', 'audios')],
+    datas=[('audios', 'audios')] + collect_data_files('customtkinter'),
     hiddenimports=['screeninfo'],
     hookspath=[],
     hooksconfig={},

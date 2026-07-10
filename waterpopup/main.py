@@ -7,8 +7,9 @@ import time
 import logging
 import argparse
 from typing import Optional
-import tkinter as tk
+import customtkinter as ctk
 
+from . import theme
 from .config import (
     carregar_config,
     salvar_config,
@@ -20,17 +21,6 @@ from .config import (
 from .monitors import habilitar_dpi_awareness
 from .popup import mostrar_popup
 from .gui_config import abrir_configuracoes
-
-# ============ TEMA DA JANELA PRINCIPAL (escuro) ============
-
-COR_FUNDO = "#0f172a"
-COR_CARD = "#111827"
-COR_CARD_2 = "#1f2937"
-COR_TEXTO = "#e5e7eb"
-COR_SUBTEXTO = "#94a3b8"
-COR_DESTAQUE = "#38bdf8"
-COR_BOTAO = "#0ea5e9"
-COR_BOTAO_HOVER = "#0284c7"
 
 # ============ AGENDAMENTO DOS LEMBRETES ============
 
@@ -77,56 +67,68 @@ def _parar_lembretes(root=None) -> bool:
 def janela_app() -> None:
     """Janela principal do app para configurar e controlar lembretes."""
     cfg = carregar_config()
-    root = tk.Tk()
+    root = ctk.CTk()
     root.title(cfg.get("control_window_title", "💧 Water Popup"))
-    root.geometry("560x330")
-    root.minsize(520, 300)
-    root.resizable(True, True)
-    root.configure(bg=COR_FUNDO)
+    root.geometry("560x360")
+    root.minsize(520, 330)
+    root.configure(fg_color=theme.COR_FUNDO)
     root.attributes("-topmost", False)
 
-    container = tk.Frame(root, bg=COR_FUNDO, padx=18, pady=16)
-    container.pack(fill="both", expand=True)
+    container = ctk.CTkFrame(root, fg_color="transparent")
+    container.pack(fill="both", expand=True, padx=18, pady=16)
 
-    card = tk.Frame(container, bg=COR_CARD, padx=18, pady=14, bd=0, highlightthickness=0)
+    card = ctk.CTkFrame(container, fg_color=theme.COR_CARD, corner_radius=theme.RAIO_BORDA)
     card.pack(fill="both", expand=True)
+    conteudo = ctk.CTkFrame(card, fg_color="transparent")
+    conteudo.pack(fill="both", expand=True, padx=18, pady=16)
 
-    tk.Label(
-        card,
+    ctk.CTkLabel(
+        conteudo,
         text=cfg.get("control_window_status", "Notificações ativas"),
-        font=("Segoe UI", 14, "bold"),
-        fg=COR_TEXTO,
-        bg=COR_CARD,
-    ).pack(anchor="w")
-    tk.Label(
-        card,
+        font=theme.fonte(15, "bold"),
+        text_color=theme.COR_TEXTO,
+        anchor="w",
+    ).pack(anchor="w", fill="x")
+    ctk.CTkLabel(
+        conteudo,
         text=cfg.get("control_window_hint", "Feche esta janela para encerrar as notificações"),
-        font=("Segoe UI", 9),
-        fg=COR_SUBTEXTO,
-        bg=COR_CARD,
-    ).pack(anchor="w", pady=(2, 10))
+        font=theme.fonte(10),
+        text_color=theme.COR_SUBTEXTO,
+        anchor="w",
+    ).pack(anchor="w", fill="x", pady=(2, 12))
 
-    status_var = tk.StringVar(value="Lembretes: iniciando...")
-    timer_var = tk.StringVar(value="Próximo lembrete em: --:--")
-    tk.Label(
-        card, textvariable=status_var,
-        font=("Segoe UI", 10, "bold"), fg=COR_DESTAQUE, bg=COR_CARD
-    ).pack(anchor="w")
-    tk.Label(
-        card, textvariable=timer_var,
-        font=("Consolas", 11), fg=COR_TEXTO, bg=COR_CARD
-    ).pack(anchor="w", pady=(4, 10))
-    tk.Label(
-        card,
+    # Indicador de estado (bolinha colorida + texto): fica verde quando os
+    # lembretes estão ativos e cinza quando pausados, pra dar um feedback
+    # visual imediato do estado sem precisar ler o texto.
+    linha_status = ctk.CTkFrame(conteudo, fg_color="transparent")
+    linha_status.pack(anchor="w", fill="x")
+    indicador_var = ctk.StringVar(value="●")
+    status_var = ctk.StringVar(value="Lembretes: iniciando...")
+    ctk.CTkLabel(
+        linha_status, textvariable=indicador_var, font=theme.fonte(12),
+        text_color=theme.COR_PAUSADO, width=16,
+    ).pack(side="left")
+    ctk.CTkLabel(
+        linha_status, textvariable=status_var, font=theme.fonte(11, "bold"),
+        text_color=theme.COR_DESTAQUE, anchor="w",
+    ).pack(side="left")
+
+    timer_var = ctk.StringVar(value="Próximo lembrete em: --:--")
+    ctk.CTkLabel(
+        conteudo, textvariable=timer_var, font=theme.fonte_mono(12),
+        text_color=theme.COR_TEXTO, anchor="w",
+    ).pack(anchor="w", fill="x", pady=(4, 12))
+    ctk.CTkLabel(
+        conteudo,
         text="Config em uso: " + caminho_config(),
-        font=("Segoe UI", 8),
-        fg=COR_SUBTEXTO,
-        bg=COR_CARD,
-        wraplength=500,
+        font=theme.fonte(9),
+        text_color=theme.COR_SUBTEXTO,
+        anchor="w",
         justify="left",
-    ).pack(anchor="w", pady=(0, 12))
+        wraplength=480,
+    ).pack(anchor="w", fill="x", pady=(0, 14))
 
-    btns = tk.Frame(card, bg=COR_CARD)
+    btns = ctk.CTkFrame(conteudo, fg_color="transparent")
     btns.pack(anchor="w")
 
     def _formatar_tempo(segundos):
@@ -138,12 +140,18 @@ def janela_app() -> None:
         return f"{m:02d}:{s:02d}"
 
     def atualizar_status():
-        status_var.set("Lembretes: ativos" if _lembretes_ativos else "Lembretes: pausados")
-        if _lembretes_ativos and _proximo_lembrete_ts:
+        ativo = _lembretes_ativos
+        status_var.set("Lembretes: ativos" if ativo else "Lembretes: pausados")
+        indicador_var.set("●")
+        indicador_label = linha_status.winfo_children()[0]
+        indicador_label.configure(text_color=theme.COR_ATIVO if ativo else theme.COR_PAUSADO)
+        if ativo and _proximo_lembrete_ts:
             restante = _proximo_lembrete_ts - time.time()
             timer_var.set(f"Próximo lembrete em: {_formatar_tempo(restante)}")
         else:
             timer_var.set("Próximo lembrete em: --:--")
+        btn_iniciar.configure(state="disabled" if ativo else "normal")
+        btn_pausar.configure(state="normal" if ativo else "disabled")
         root.after(1000, atualizar_status)
 
     def abrir_cfg():
@@ -162,22 +170,19 @@ def janela_app() -> None:
     def pausar():
         _parar_lembretes(root)
 
-    tk.Button(
-        btns, text="Configurar", width=14, command=abrir_cfg,
-        bg=COR_CARD_2, fg=COR_TEXTO, activebackground="#334155", activeforeground=COR_TEXTO, relief="flat"
-    ).grid(row=0, column=0, padx=4, pady=4)
-    tk.Button(
-        btns, text="Testar agora", width=14, command=testar_agora,
-        bg=COR_CARD_2, fg=COR_TEXTO, activebackground="#334155", activeforeground=COR_TEXTO, relief="flat"
-    ).grid(row=0, column=1, padx=4, pady=4)
-    tk.Button(
-        btns, text="Iniciar", width=14, command=iniciar,
-        bg=COR_BOTAO, fg="white", activebackground=COR_BOTAO_HOVER, activeforeground="white", relief="flat"
-    ).grid(row=1, column=0, padx=4, pady=4)
-    tk.Button(
-        btns, text="Pausar", width=14, command=pausar,
-        bg=COR_CARD_2, fg=COR_TEXTO, activebackground="#334155", activeforeground=COR_TEXTO, relief="flat"
-    ).grid(row=1, column=1, padx=4, pady=4)
+    botao_secundario = dict(
+        width=140, fg_color=theme.COR_BOTAO_SEC, hover_color=theme.COR_BOTAO_SEC_HOVER,
+        text_color=theme.COR_TEXTO, font=theme.fonte(11), corner_radius=theme.RAIO_BORDA_PEQUENO,
+    )
+    ctk.CTkButton(btns, text="Configurar", command=abrir_cfg, **botao_secundario).grid(row=0, column=0, padx=4, pady=4)
+    ctk.CTkButton(btns, text="Testar agora", command=testar_agora, **botao_secundario).grid(row=0, column=1, padx=4, pady=4)
+    btn_iniciar = ctk.CTkButton(
+        btns, text="Iniciar", command=iniciar, width=140, font=theme.fonte(11, "bold"),
+        fg_color=theme.COR_BOTAO, hover_color=theme.COR_BOTAO_HOVER, corner_radius=theme.RAIO_BORDA_PEQUENO,
+    )
+    btn_iniciar.grid(row=1, column=0, padx=4, pady=4)
+    btn_pausar = ctk.CTkButton(btns, text="Pausar", command=pausar, **botao_secundario)
+    btn_pausar.grid(row=1, column=1, padx=4, pady=4)
 
     def ao_fechar_app():
         _parar_lembretes(root)
