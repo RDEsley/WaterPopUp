@@ -30,28 +30,27 @@ risco que justifica reverter para CustomTkinter em vez de insistir.
 
 import customtkinter as ctk
 
-ctk.set_appearance_mode("dark")
+ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-# ============ CORES ============
+# ============ CORES — paleta outono (fundo claro, alto contraste) ============
 
-COR_FUNDO = "#0f172a"
-COR_CARD = "#111827"
-COR_CARD_2 = "#1f2937"
-COR_TEXTO = "#e5e7eb"
-COR_SUBTEXTO = "#94a3b8"
-COR_DESTAQUE = "#38bdf8"
-COR_BOTAO = "#0ea5e9"
-COR_BOTAO_HOVER = "#0284c7"
-COR_BOTAO_SEC = "#1f2937"
-COR_BOTAO_SEC_HOVER = "#334155"
-COR_BORDA = "#243244"
+COR_FUNDO = "#f4ead9"        # creme quente
+COR_CARD = "#fbf3e7"         # creme mais claro (cards sobre o fundo)
+COR_CARD_2 = "#ecdcc4"       # bege mais escuro (botões secundários, listas)
+COR_TEXTO = "#3d2817"        # marrom escuro (alto contraste sobre o creme)
+COR_SUBTEXTO = "#6b4f3a"     # marrom médio
+COR_DESTAQUE = "#c2410c"     # terracota
+COR_BOTAO = "#d97706"        # âmbar/laranja
+COR_BOTAO_HOVER = "#b45309"  # âmbar mais escuro
+COR_BOTAO_SEC = "#ecdcc4"    # bege (botão secundário)
+COR_BOTAO_SEC_HOVER = "#e0c9a6"
+COR_BORDA = "#d9c4a3"        # bege acinzentado
 
-COR_ATIVO = "#22c55e"       # indicador: lembretes ativos
-COR_PAUSADO = "#64748b"     # indicador: lembretes pausados
+COR_ATIVO = "#4d7c0f"        # verde-oliva: indicador de lembretes ativos
+COR_PAUSADO = "#a8927c"      # bege acinzentado: indicador de lembretes pausados
 
-COR_ERRO = "#f87171"
-COR_ERRO_FUNDO = "#3b1f22"
+COR_ERRO = "#b91c1c"         # vermelho escuro (contraste sobre fundo claro)
 
 # ============ FONTES ============
 

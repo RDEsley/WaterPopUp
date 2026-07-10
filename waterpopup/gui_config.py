@@ -80,6 +80,38 @@ def _botao_pri(parent, **kw):
     return ctk.CTkButton(parent, **opts)
 
 
+def _radio(parent, **kw):
+    """CTkRadioButton com o acento da paleta outono — sem isso, os
+    rádio-botões ficam com o azul padrão do CustomTkinter, destoando do
+    resto da tela."""
+    opts = dict(
+        font=theme.fonte(11), text_color=theme.COR_TEXTO,
+        fg_color=theme.COR_BOTAO, hover_color=theme.COR_BOTAO_HOVER,
+        border_color=theme.COR_SUBTEXTO,
+    )
+    opts.update(kw)
+    return ctk.CTkRadioButton(parent, **opts)
+
+
+def _checkbox(parent, **kw):
+    opts = dict(
+        font=theme.fonte(11), text_color=theme.COR_TEXTO,
+        fg_color=theme.COR_BOTAO, hover_color=theme.COR_BOTAO_HOVER,
+        border_color=theme.COR_SUBTEXTO, checkmark_color=theme.COR_CARD,
+    )
+    opts.update(kw)
+    return ctk.CTkCheckBox(parent, **opts)
+
+
+def _slider(parent, **kw):
+    opts = dict(
+        fg_color=theme.COR_BOTAO_SEC, progress_color=theme.COR_BOTAO,
+        button_color=theme.COR_DESTAQUE, button_hover_color=theme.COR_BOTAO_HOVER,
+    )
+    opts.update(kw)
+    return ctk.CTkSlider(parent, **opts)
+
+
 def abrir_configuracoes(parent=None):
     is_top_level = parent is not None
     root = ctk.CTkToplevel(parent) if is_top_level else ctk.CTk()
@@ -260,17 +292,17 @@ def abrir_configuracoes(parent=None):
     inner2.pack(fill="x", padx=16, pady=16)
     _rotulo(inner2, "Efeito na mensagem").pack(anchor="w", pady=(0, 8))
     for val, lbl in _FUN_MODE_OPCOES:
-        ctk.CTkRadioButton(inner2, text=lbl, variable=fun_mode_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
+        _radio(inner2, text=lbl, variable=fun_mode_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
 
     # ---- Visual/GIF (visual: mode, fullscreen, fit_mode, gif_zoom_percent + gifs) ----
     f_visual = _card(tab_visual)
     f_visual.pack(fill="x", padx=4, pady=4)
     inner = ctk.CTkFrame(f_visual, fg_color="transparent")
     inner.pack(fill="x", padx=16, pady=16)
-    ctk.CTkRadioButton(inner, text="Usar notificação padrão (texto e cores)", variable=visual_mode_var, value="notification", font=theme.fonte(11)).pack(anchor="w", pady=2)
-    ctk.CTkRadioButton(inner, text="Usar GIF animado", variable=visual_mode_var, value="gif", font=theme.fonte(11)).pack(anchor="w", pady=2)
-    ctk.CTkCheckBox(inner, text="Cobrir toda a tela ao exibir o lembrete (multi-monitor se houver 2+ telas)", variable=fullscreen_var, font=theme.fonte(11)).pack(anchor="w", pady=(10, 2))
-    ctk.CTkCheckBox(inner, text="Parar áudio ao fechar o popup (recomendado para áudios longos)", variable=stop_audio_var, font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _radio(inner, text="Usar notificação padrão (texto e cores)", variable=visual_mode_var, value="notification", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _radio(inner, text="Usar GIF animado", variable=visual_mode_var, value="gif", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _checkbox(inner, text="Cobrir toda a tela ao exibir o lembrete (multi-monitor se houver 2+ telas)", variable=fullscreen_var, font=theme.fonte(11)).pack(anchor="w", pady=(10, 2))
+    _checkbox(inner, text="Parar áudio ao fechar o popup (recomendado para áudios longos)", variable=stop_audio_var, font=theme.fonte(11)).pack(anchor="w", pady=2)
 
     f_gif = _card(tab_visual)
     f_gif.pack(fill="both", expand=True, padx=4, pady=(8, 4))
@@ -284,14 +316,14 @@ def abrir_configuracoes(parent=None):
 
     linha_modo_gif = ctk.CTkFrame(coluna_gif, fg_color="transparent")
     linha_modo_gif.pack(anchor="w", pady=(0, 8))
-    ctk.CTkRadioButton(linha_modo_gif, text="GIF fixo", variable=gif_mode_var, value="single", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
-    ctk.CTkRadioButton(linha_modo_gif, text="Aleatório do histórico", variable=gif_mode_var, value="random_history", font=theme.fonte(11)).pack(side="left")
+    _radio(linha_modo_gif, text="GIF fixo", variable=gif_mode_var, value="single", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
+    _radio(linha_modo_gif, text="Aleatório do histórico", variable=gif_mode_var, value="random_history", font=theme.fonte(11)).pack(side="left")
 
     linha_fit = ctk.CTkFrame(coluna_gif, fg_color="transparent")
     linha_fit.pack(anchor="w", pady=(0, 8))
     _rotulo(linha_fit, "Ajuste:", font=theme.fonte(10), text_color=theme.COR_SUBTEXTO).pack(side="left", padx=(0, 8))
-    ctk.CTkRadioButton(linha_fit, text="Ajustar inteiro", variable=gif_fit_mode_var, value="contain", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
-    ctk.CTkRadioButton(linha_fit, text="Preencher (pode cortar)", variable=gif_fit_mode_var, value="cover", font=theme.fonte(11)).pack(side="left")
+    _radio(linha_fit, text="Ajustar inteiro", variable=gif_fit_mode_var, value="contain", font=theme.fonte(11)).pack(side="left", padx=(0, 16))
+    _radio(linha_fit, text="Preencher (pode cortar)", variable=gif_fit_mode_var, value="cover", font=theme.fonte(11)).pack(side="left")
 
     linha_zoom = ctk.CTkFrame(coluna_gif, fg_color="transparent")
     linha_zoom.pack(anchor="w", pady=(0, 10))
@@ -555,7 +587,7 @@ def abrir_configuracoes(parent=None):
     inner.pack(fill="x", padx=16, pady=16)
     _rotulo(inner, "Posição do popup na tela").pack(anchor="w", pady=(0, 8))
     for val, lbl in _POS_OPCOES:
-        ctk.CTkRadioButton(inner, text=lbl, variable=pos_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
+        _radio(inner, text=lbl, variable=pos_var, value=val, font=theme.fonte(11)).pack(anchor="w", pady=2)
     _subtitulo(inner, "Vale tanto para a notificação normal quanto para o modo tela cheia (sem GIF).").pack(anchor="w", pady=(8, 0))
 
     # ---- Cores (colors: random, palette) ----
@@ -563,13 +595,13 @@ def abrir_configuracoes(parent=None):
     f_cores.pack(fill="x", padx=4, pady=4)
     inner = ctk.CTkFrame(f_cores, fg_color="transparent")
     inner.pack(fill="x", padx=16, pady=16)
-    ctk.CTkCheckBox(inner, text="Cores aleatórias a cada popup", variable=random_colors_var, font=theme.fonte(11)).pack(anchor="w")
+    _checkbox(inner, text="Cores aleatórias a cada popup", variable=random_colors_var, font=theme.fonte(11)).pack(anchor="w")
 
     _rotulo(inner, "Paleta de cores", font=theme.fonte(11)).pack(anchor="w", pady=(14, 6))
     linha_paletas = ctk.CTkFrame(inner, fg_color="transparent")
     linha_paletas.pack(anchor="w")
     for nome in PALETAS:
-        ctk.CTkRadioButton(linha_paletas, text=nome, variable=palette_var, value=nome, font=theme.fonte(11)).pack(side="left", padx=(0, 14))
+        _radio(linha_paletas, text=nome, variable=palette_var, value=nome, font=theme.fonte(11)).pack(side="left", padx=(0, 14))
 
     _rotulo(inner, "Pré-visualização", font=theme.fonte(11)).pack(anchor="w", pady=(14, 6))
     preview_frame = ctk.CTkFrame(inner, fg_color="transparent")
@@ -594,7 +626,7 @@ def abrir_configuracoes(parent=None):
     grade_anim = ctk.CTkFrame(inner, fg_color="transparent")
     grade_anim.pack(anchor="w")
     for idx, (val, lbl) in enumerate(_ANIM_OPCOES):
-        ctk.CTkRadioButton(grade_anim, text=lbl, variable=anim_var, value=val, font=theme.fonte(11)).grid(
+        _radio(grade_anim, text=lbl, variable=anim_var, value=val, font=theme.fonte(11)).grid(
             row=idx // 3, column=idx % 3, sticky="w", padx=(0, 20), pady=4
         )
 
@@ -604,8 +636,8 @@ def abrir_configuracoes(parent=None):
     inner = ctk.CTkFrame(f_audio, fg_color="transparent")
     inner.pack(fill="both", expand=True, padx=16, pady=16)
 
-    ctk.CTkRadioButton(inner, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", font=theme.fonte(11)).pack(anchor="w", pady=2)
-    ctk.CTkRadioButton(inner, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _radio(inner, text="Aleatório — todos os arquivos da pasta audios", variable=audio_mode_var, value="random", font=theme.fonte(11)).pack(anchor="w", pady=2)
+    _radio(inner, text="Apenas os selecionados na lista abaixo (Ctrl+clique para vários)", variable=audio_mode_var, value="selected", font=theme.fonte(11)).pack(anchor="w", pady=2)
 
     vol_frame = ctk.CTkFrame(inner, fg_color="transparent")
     vol_frame.pack(fill="x", pady=(12, 6))
@@ -623,7 +655,7 @@ def abrir_configuracoes(parent=None):
         vol_pct_label.configure(text=f"{v}%")
 
     vol_var.trace_add("write", atualizar_label_vol)
-    ctk.CTkSlider(vol_frame, from_=0, to=100, variable=vol_var, number_of_steps=100).pack(fill="x", pady=(6, 0))
+    _slider(vol_frame, from_=0, to=100, variable=vol_var, number_of_steps=100).pack(fill="x", pady=(6, 0))
     _subtitulo(vol_frame, "Afeta o som ao tocar o lembrete e as prévias desta janela (0% = mudo).").pack(anchor="w", pady=(6, 0))
 
     def cfg_com_volume_atual():
