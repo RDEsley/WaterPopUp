@@ -3,12 +3,15 @@ v2 (Geral, Mensagem, Visual/GIF, Posição, Cores, Animação, Áudio, Avançado
 
 import os
 import shutil
+import logging
 import tkinter as tk
 from tkinter import messagebox, filedialog
 import customtkinter as ctk
 
 from . import theme
+from . import gif_cache
 from .config import carregar_config, salvar_config, CONFIG_PADRAO, PALETAS, POSICOES_POPUP
+from .monitors import listar_monitores
 from .audio import listar_audios, tocar_arquivo_audio, parar_som, pasta_audios, abrir_pasta_no_explorador
 from .popup import normalizar_historico_gifs, importar_gif_para_app, mostrar_popup, carregar_frames_para_preview
 
@@ -330,9 +333,15 @@ def abrir_configuracoes(parent=None):
     ctk.CTkLabel(
         coluna_preview, textvariable=preview_status_var, font=theme.fonte(9),
         text_color=theme.COR_SUBTEXTO, wraplength=210, justify="center",
-    ).place(relx=0.5, rely=0.9, anchor="center")
+    ).place(relx=0.5, rely=0.86, anchor="center")
+    prefetch_status_var = ctk.StringVar(value="")
+    ctk.CTkLabel(
+        coluna_preview, textvariable=prefetch_status_var, font=theme.fonte(8),
+        text_color=theme.COR_SUBTEXTO, wraplength=210, justify="center",
+    ).place(relx=0.5, rely=0.97, anchor="s")
 
     _preview_after_id = {"id": None}
+    _prefetch_after_id = {"id": None}
 
     def _parar_preview():
         if _preview_after_id["id"] is not None:
@@ -341,6 +350,51 @@ def abrir_configuracoes(parent=None):
             except Exception:
                 pass
             _preview_after_id["id"] = None
+
+    def _parar_monitoramento_prefetch():
+        if _prefetch_after_id["id"] is not None:
+            try:
+                root.after_cancel(_prefetch_after_id["id"])
+            except Exception:
+                pass
+            _prefetch_after_id["id"] = None
+
+    def _checar_prefetch(caminho, alvos, tentativas=0):
+        if not root.winfo_exists():
+            return
+        pendentes = [a for a in alvos if not gif_cache.esta_em_cache(caminho, *a)]
+        if not pendentes or tentativas > 60:  # ~30s de tolerância
+            prefetch_status_var.set("")
+            return
+        prefetch_status_var.set("Preparando para suas telas…")
+        _prefetch_after_id["id"] = root.after(500, lambda: _checar_prefetch(caminho, alvos, tentativas + 1))
+
+    def disparar_prefetch_gif(caminho: str) -> None:
+        """Prepara em background o cache do GIF na resolução de cada monitor
+        detectado, assim que o usuário escolhe/adiciona o GIF — pra quando
+        clicar em "Testar agora" ou o próximo lembrete disparar, o cache já
+        estar pronto (GIF plug-and-play, sem ajuste manual)."""
+        _parar_monitoramento_prefetch()
+        if not caminho or not os.path.isfile(caminho):
+            return
+        try:
+            fit_mode = gif_fit_mode_var.get()
+            try:
+                zoom_pct = max(100, min(300, int(round(float(gif_zoom_var.get())))))
+            except (ValueError, tk.TclError):
+                zoom_pct = 140
+            cores = PALETAS.get(palette_var.get(), PALETAS["Pastel"])
+            cor_hex = cores[0] if cores else "#87CEEB"
+            r, g, b = root.winfo_rgb(cor_hex)
+            cor_fundo = (r // 256, g // 256, b // 256)
+            monitores = listar_monitores(root)
+            resolucoes = {(max(160, m.width - 80), max(120, m.height - 120)) for m in monitores}
+            resolucoes.add((260, 130))  # tamanho aproximado do popup normal
+            alvos = [(w, h, fit_mode, zoom_pct, cor_fundo) for (w, h) in resolucoes]
+            gif_cache.preprocessar_em_background(caminho, alvos)
+            _checar_prefetch(caminho, alvos)
+        except Exception as e:
+            logging.warning("Falha ao preparar pré-processamento do GIF '%s': %s", caminho, e)
 
     def atualizar_preview_gif(*_a):
         _parar_preview()
@@ -351,6 +405,7 @@ def abrir_configuracoes(parent=None):
             return
         if not caminho or not os.path.isfile(caminho):
             preview_status_var.set("Nenhum GIF selecionado.")
+            prefetch_status_var.set("")
             return
         preview_status_var.set("Carregando pré-visualização…")
         root.update_idletasks()
@@ -359,6 +414,7 @@ def abrir_configuracoes(parent=None):
             preview_status_var.set("Não foi possível pré-visualizar este GIF.")
             return
         preview_status_var.set("")
+        disparar_prefetch_gif(caminho)
 
         def tick(i=0):
             if not preview_label.winfo_exists():
@@ -863,8 +919,16 @@ def abrir_configuracoes(parent=None):
         }
         salvar_config(novo_cfg)
         _parar_preview()
+        _parar_monitoramento_prefetch()
         messagebox.showinfo("Salvo", "Configurações salvas! As mudanças valerão no próximo lembrete.")
         root.destroy()
+
+    def _ao_fechar_config():
+        _parar_preview()
+        _parar_monitoramento_prefetch()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", _ao_fechar_config)
 
     _botao_sec(rodape, text="Testar popup", command=testar, width=140).pack(side="left")
     btn_salvar = _botao_pri(rodape, text="Salvar", command=salvar, width=140)

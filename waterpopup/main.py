@@ -19,7 +19,7 @@ from .config import (
     MAPA_NESTED_PARA_FLAT,
 )
 from .monitors import habilitar_dpi_awareness
-from .popup import mostrar_popup
+from .popup import mostrar_popup, preprocessar_gifs_conhecidos_em_background
 from .gui_config import abrir_configuracoes
 
 # ============ AGENDAMENTO DOS LEMBRETES ============
@@ -191,6 +191,9 @@ def janela_app() -> None:
     root.protocol("WM_DELETE_WINDOW", ao_fechar_app)
     _iniciar_lembretes(root)
     atualizar_status()
+    # Prepara em background o cache dos GIFs já conhecidos (pasta gifs/ e
+    # histórico), pras resoluções dos monitores atuais — sem travar a janela.
+    root.after(200, lambda: preprocessar_gifs_conhecidos_em_background(root, cfg))
     root.mainloop()
 
 # ============ CLI ============

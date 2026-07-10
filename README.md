@@ -79,10 +79,11 @@ Depois:
 |---|---|
 | 🐍 **Python 3.8+** | Core do sistema e lógica de automação |
 | 🎮 **Pygame** | Motor de áudio |
-| 🪟 **Tkinter** | Interface gráfica (popup e configurações) |
+| 🪟 **Tkinter** | Janelas de notificação (popup) — texto e GIF |
+| 🎨 **CustomTkinter** | Janela principal e tela de configurações |
 | 🖼️ **Pillow** | Decodificação e redimensionamento de GIFs animados |
 | 🖥️ **screeninfo** | Detecção de monitores para o modo tela cheia multi-monitor |
-| 🧵 **Threading** | Gerenciamento de processos em background |
+| 🧵 **Threading** | Cache de GIFs em disco preparado em segundo plano |
 
 </div>
 
@@ -190,35 +191,53 @@ O app grava preferências em `config.json` (ignorado no Git). Para começar a pa
 
 **Onde o arquivo é salvo:** por padrão, na pasta raiz do projeto (onde fica `run.py`) ou do `.exe` **se essa pasta for gravável**. Se não for (ex.: `Program Files`), usa-se `%AppData%\WaterPopUp\config.json`. Você pode forçar o caminho com a variável `WATERPOPUP_CONFIG_PATH` ou com `--config-path`.
 
-Execute com `--config` para abrir a interface de personalização:
+Execute com `--config` para abrir a interface de personalização — organizada
+em abas que espelham as seções do `config.json` (veja [Configurações](#configuracoes)
+acima), com validação inline nos campos numéricos e pré-visualização animada
+do GIF selecionado:
 
-- **Mensagem** — Texto exibido no popup
-- **Intervalo** — Minutos entre cada notificação (1–120)
-- **Duração** — Segundos que o popup permanece na tela (3–60)
+- **Geral** — Intervalo entre lembretes (1–120 min) e duração do popup na tela (3–60 seg)
+- **Mensagem** — Texto exibido no popup, tamanho da fonte (10–24 px) e efeito extra (sem efeito, brilho, água ou festa)
+- **Visual/GIF** — Notificação padrão (texto) ou GIF animado; tela cheia (cobre **todos** os monitores conectados ao mesmo tempo, veja [Multi-monitor](#multimonitor)); modo de ajuste do GIF, zoom em tela cheia, seleção pelo explorador e histórico salvo — veja também [GIFs plug-and-play](#configuracoes)
 - **Posição** — Aleatório (incluindo centro) ou posição fixa (cantos + centro)
-- **Visual** — Notificação padrão (texto) ou GIF animado
-- **GIFs** — Seleção pelo explorador, histórico salvo e opção de GIF aleatório a cada notificação
-- **Tela cheia** — Opção para cobrir toda a tela durante a notificação (inclusive no modo GIF). Com 2 ou mais monitores conectados, cobre **todos** eles ao mesmo tempo (veja [Multi-monitor](#multimonitor))
-- **Parar áudio ao fechar** — Interrompe o som quando o popup fecha
-- **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico)
+- **Cores** — Aleatórias ou paleta fixa (Pastel, Vibrante, Natureza, Escuro, Clássico), com pré-visualização
 - **Animação** — Aleatória, Deslizar, Vertical, Zoom, Bounce, Elástico, Cair, Fade ou Nenhuma
-- **Fonte** — Tamanho do texto (10–24 px)
-- **Extras divertidos** — Efeitos de mensagem (sem efeito, brilho, água e festa)
-- **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`
-- **Janela principal (opcional, só no JSON)** — `control_window_title`, `control_window_status`, `control_window_hint` personalizam título, texto de estado e dica da janela de controle
+- **Áudio** — Modo aleatório ou seleção de arquivos específicos da pasta `audios/`, controle de volume
+- **Avançado** — Título, texto de status e dica da janela principal (antes só dava pra mudar editando o `config.json` ou via `--set`)
 
 ### Pasta de áudios
 
 - **Com .exe:** Coloque a pasta `audios/` ao lado do executável para usar seus próprios arquivos.
 - **Com Python:** Use a pasta `audios/` na raiz do projeto.
 
-### GIFs recomendados para tela cheia
+### GIFs — basta colocar o arquivo, sem ajuste manual
 
-- **Resolução mínima:** 1280x720 — abaixo disso o GIF fica borrado ao ser ampliado para preencher a tela.
-- **Proporção:** próxima de 16:9 (a mesma da maioria dos monitores) evita barras grandes de letterbox/pillarbox.
-- **Tamanho de arquivo:** até 10MB — arquivos maiores demoram mais para carregar na primeira exibição (as exibições seguintes usam cache em memória e ficam instantâneas).
-- **Onde encontrar:** bancos como Giphy ou Tenor, filtrando por GIFs de uso livre/licença aberta, ou GIFs de sua própria autoria.
-- O modo de ajuste (`gif_fit_mode`) controla como o GIF se encaixa na tela: **"contain"** (padrão) mostra o GIF inteiro com barras da cor do popup ao redor; **"cover"** preenche a tela cortando as bordas do GIF.
+Qualquer GIF na pasta `gifs/` (ou escolhido pelo seletor de arquivos na tela
+de Configurações) funciona sem precisar editar/redimensionar nada antes:
+o redimensionamento é automático (modo "contain" por padrão) e um cache em
+disco é preparado sozinho, em segundo plano, para a resolução de cada
+monitor detectado.
+
+- Assim que você escolhe ou adiciona um GIF na aba **Visual/GIF**, o app já
+  dispara esse preparo em background (indicador discreto "Preparando para
+  suas telas…" enquanto isso). Ao clicar em "Testar agora" logo em seguida,
+  a exibição já sai rápida.
+- O mesmo preparo roda automaticamente ao abrir o app, para os GIFs já
+  salvos na pasta `gifs/` e no histórico — então reabrir o app não volta a
+  reprocessar GIFs que você já usou antes.
+- **Resolução mínima recomendada:** 1280x720 — abaixo disso o GIF fica
+  borrado ao ser ampliado para preencher a tela (isso é uma limitação do
+  arquivo original, não algo que o redimensionamento automático resolva).
+- **Proporção:** próxima de 16:9 (a mesma da maioria dos monitores) evita
+  barras grandes de letterbox/pillarbox — mas qualquer proporção funciona.
+- **Tamanho de arquivo:** até 10MB é o ideal; arquivos bem maiores demoram
+  mais na primeira preparação (que roda em segundo plano, sem travar o
+  app) — depois de pronto, fica em cache e a exibição é instantânea.
+- **Onde encontrar:** bancos como Giphy ou Tenor, filtrando por GIFs de uso
+  livre/licença aberta, ou GIFs de sua própria autoria.
+- O modo de ajuste (`gif_fit_mode`) controla como o GIF se encaixa na tela:
+  **"contain"** (padrão) mostra o GIF inteiro com barras da cor do popup ao
+  redor; **"cover"** preenche a tela cortando as bordas do GIF.
 
 ---
 
@@ -245,8 +264,10 @@ WaterPopUp/
 ├── waterpopup/                 # Pacote com a aplicação
 │   ├── main.py                 # CLI, janela principal e agendamento dos lembretes
 │   ├── config.py                # Paths, esquema/validação (dataclasses) e migração do config.json
+│   ├── theme.py                 # Cores/fontes centralizadas da UI (CustomTkinter)
 │   ├── popup.py                 # Janelas de notificação (texto/GIF, multi-monitor)
-│   ├── gui_config.py            # Janela de configurações
+│   ├── gui_config.py            # Janela de configurações (abas espelhando o config v2)
+│   ├── gif_cache.py             # Cache em disco de frames de GIF + pré-processamento em background
 │   ├── animations.py            # Posicionamento e animações de entrada do popup
 │   ├── audio.py                 # Reprodução de áudio (pygame)
 │   ├── monitors.py              # Detecção de monitores e DPI awareness

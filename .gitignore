@@ -38,6 +38,9 @@ config.json
 config.json.bak
 config.json.*.bak
 
+# Cache de frames de GIF pré-processados (gerado automaticamente)
+.cache/
+
 # IDE
 .idea/
 .vscode/

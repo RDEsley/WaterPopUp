@@ -2,33 +2,24 @@
 tela cheia multi-monitor sincronizada."""
 
 import os
-import math
 import random
 import shutil
-import logging
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 import tkinter as tk
 
 try:
-    from PIL import Image, ImageTk, ImageOps
+    from PIL import ImageTk
     PIL_DISPONIVEL = True
 except Exception:
-    Image = ImageTk = ImageOps = None
+    ImageTk = None
     PIL_DISPONIVEL = False
-
-if PIL_DISPONIVEL:
-    try:
-        PIL_RESAMPLING_LANCZOS = Image.Resampling.LANCZOS
-    except Exception:
-        PIL_RESAMPLING_LANCZOS = Image.LANCZOS
-else:
-    PIL_RESAMPLING_LANCZOS = None
 
 from .config import PALETAS, CONFIG_PADRAO, pasta_base, pasta_config, carregar_config
 from .monitors import listar_monitores
 from .animations import resolver_posicao_popup, pos_inicial, animar_entrada
 from .audio import tocar_som, parar_som
+from . import gif_cache
 
 # ============ GIFs: pasta, importação e histórico ============
 
@@ -84,6 +75,58 @@ def resolver_gif_do_popup(cfg: Dict[str, Any]) -> str:
         return validos[-1]
     return gif_atual
 
+def preprocessar_gifs_conhecidos_em_background(widget_para_cor, cfg: Optional[Dict[str, Any]] = None) -> None:
+    """Indexa os GIFs da pasta `gifs/` e do histórico salvo, preparando o
+    cache em disco (frames já redimensionados) para a resolução de cada
+    monitor detectado — roda em background, sem travar a UI. Chamado ao
+    iniciar o app, pra que o primeiro "Testar agora"/lembrete real de um GIF
+    já conhecido não precise decodificar nada na hora.
+    """
+    if not PIL_DISPONIVEL:
+        return
+    cfg = cfg or carregar_config()
+    gif_fit_mode = str(cfg.get("gif_fit_mode", "contain")).strip().lower()
+    if gif_fit_mode not in ("contain", "cover"):
+        gif_fit_mode = "contain"
+    try:
+        gif_zoom_pct = int(round(float(cfg.get("gif_fullscreen_zoom_percent", 140))))
+    except (TypeError, ValueError):
+        gif_zoom_pct = 140
+    gif_zoom_pct = max(100, min(300, gif_zoom_pct))
+
+    cores = cfg.get("colors", PALETAS["Pastel"]) or PALETAS["Pastel"]
+    cor_hex = cores[0] if cores else "#87CEEB"
+    cor_fundo = _tk_cor_para_rgb(widget_para_cor, cor_hex)
+
+    caminhos = set()
+    try:
+        pasta = pasta_gifs()
+        if os.path.isdir(pasta):
+            for nome in os.listdir(pasta):
+                if nome.lower().endswith(".gif"):
+                    caminhos.add(os.path.join(pasta, nome))
+    except OSError:
+        pass
+    for p in normalizar_historico_gifs(cfg.get("gif_history", [])):
+        if os.path.isfile(p):
+            caminhos.add(p)
+    gif_atual = (cfg.get("gif_path") or "").strip()
+    if gif_atual and os.path.isfile(gif_atual):
+        caminhos.add(gif_atual)
+    if not caminhos:
+        return
+
+    try:
+        monitores = listar_monitores(widget_para_cor)
+    except Exception:
+        monitores = []
+    resolucoes = {(max(160, m.width - 80), max(120, m.height - 120)) for m in monitores}
+    resolucoes.add((260, 130))  # tamanho aproximado do popup normal (não-fullscreen)
+
+    alvos = [(w, h, gif_fit_mode, gif_zoom_pct, cor_fundo) for (w, h) in resolucoes]
+    for caminho in caminhos:
+        gif_cache.preprocessar_em_background(caminho, alvos)
+
 # ============ Renderização do popup ============
 
 _CACHE_FRAMES_GIF = OrderedDict()
@@ -101,16 +144,15 @@ def _tk_cor_para_rgb(widget, cor: str) -> Tuple[int, int, int]:
 
 def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain", fullscreen_zoom=1.0, cor_fundo=(0, 0, 0)):
     """
-    Carrega GIF animado com Pillow para evitar artefatos visuais do tk.PhotoImage
-    (borrões pretos / transparência) e reduzir risco de crash por memória.
+    Retorna (frames PhotoImage, durações em ms) prontos para animar no Tk.
 
-    Redimensiona mantendo a proporção original (LANCZOS). GIFs com muitos
-    frames são sub-amostrados (no máximo `max_frames` quadros) para manter o
-    carregamento rápido mesmo em arquivos grandes. Os frames já processados
-    (por caminho + tamanho + modo + zoom + cor) ficam em cache em memória
-    durante a sessão, então reexibir o mesmo GIF não reprocessa nada.
-
-    Retorna (frames, duracoes_ms).
+    Duas camadas de cache: um cache em memória (rápido, chave barata por
+    caminho+mtime, só válido durante a sessão) na frente de um cache
+    persistente em disco (`gif_cache`, chave por hash do conteúdo do
+    arquivo — sobrevive a reinícios do app). A decodificação e o resize
+    de verdade (o que causa o lag em GIFs grandes) acontecem em
+    `gif_cache.obter_frames`; aqui só envolvemos o resultado em
+    `ImageTk.PhotoImage`, que precisa rodar na thread principal do Tk.
     """
     if not PIL_DISPONIVEL:
         return [], []
@@ -119,63 +161,20 @@ def _carregar_frames_gif(caminho_gif, max_w=None, max_h=None, fit_mode="contain"
         mtime = os.path.getmtime(caminho_gif)
     except OSError:
         mtime = 0
-    cor_fundo = tuple(cor_fundo)
-    chave = (os.path.normcase(os.path.abspath(caminho_gif)), mtime, max_w, max_h, fit_mode, round(fullscreen_zoom, 3), cor_fundo)
-    if chave in _CACHE_FRAMES_GIF:
-        _CACHE_FRAMES_GIF.move_to_end(chave)
-        return _CACHE_FRAMES_GIF[chave]
+    cor_fundo = tuple(int(c) for c in cor_fundo)
+    chave_memoria = (os.path.normcase(os.path.abspath(caminho_gif)), mtime, max_w, max_h, fit_mode, round(fullscreen_zoom, 3), cor_fundo)
+    if chave_memoria in _CACHE_FRAMES_GIF:
+        _CACHE_FRAMES_GIF.move_to_end(chave_memoria)
+        return _CACHE_FRAMES_GIF[chave_memoria]
 
-    frames = []
-    duracoes = []
-    max_frames = 180
-    min_delay = 20
-    max_delay = 300
-
-    try:
-        with Image.open(caminho_gif) as img:
-            total_frames = max(1, int(getattr(img, "n_frames", 1)))
-            step = max(1, math.ceil(total_frames / max_frames))
-
-            for idx in range(0, total_frames, step):
-                img.seek(idx)
-                frame = img.convert("RGBA")
-                if max_w and max_h:
-                    if fit_mode == "cover":
-                        frame = ImageOps.fit(
-                            frame,
-                            (max_w, max_h),
-                            method=PIL_RESAMPLING_LANCZOS,
-                            centering=(0.5, 0.5),
-                        )
-                    else:
-                        frame = ImageOps.contain(frame, (max_w, max_h), method=PIL_RESAMPLING_LANCZOS)
-
-                    # Zoom extra (somente para tela cheia). Depois corta no centro para manter composição.
-                    if fullscreen_zoom > 1.0:
-                        zoom_w = max(1, int(frame.width * fullscreen_zoom))
-                        zoom_h = max(1, int(frame.height * fullscreen_zoom))
-                        frame = frame.resize((zoom_w, zoom_h), PIL_RESAMPLING_LANCZOS)
-                        if zoom_w >= max_w and zoom_h >= max_h:
-                            left = (zoom_w - max_w) // 2
-                            top = (zoom_h - max_h) // 2
-                            frame = frame.crop((left, top, left + max_w, top + max_h))
-                        else:
-                            fundo = Image.new("RGBA", (max_w, max_h), (*cor_fundo, 255))
-                            paste_x = (max_w - zoom_w) // 2
-                            paste_y = (max_h - zoom_h) // 2
-                            fundo.paste(frame, (paste_x, paste_y), frame)
-                            frame = fundo
-                tk_frame = ImageTk.PhotoImage(frame)
-                frames.append(tk_frame)
-                dur = int(img.info.get("duration", 80) or 80)
-                duracoes.append(max(min_delay, min(max_delay, dur * step)))
-    except Exception as e:
-        logging.warning("Falha ao decodificar GIF '%s': %s", caminho_gif, e)
+    frames_pillow, duracoes = gif_cache.obter_frames(caminho_gif, max_w, max_h, fit_mode, fullscreen_zoom, cor_fundo)
+    if not frames_pillow:
         return [], []
 
+    frames = [ImageTk.PhotoImage(f) for f in frames_pillow]
     resultado = (frames, duracoes)
-    _CACHE_FRAMES_GIF[chave] = resultado
-    _CACHE_FRAMES_GIF.move_to_end(chave)
+    _CACHE_FRAMES_GIF[chave_memoria] = resultado
+    _CACHE_FRAMES_GIF.move_to_end(chave_memoria)
     while len(_CACHE_FRAMES_GIF) > _CACHE_FRAMES_GIF_MAX:
         _CACHE_FRAMES_GIF.popitem(last=False)
     return resultado
@@ -383,18 +382,25 @@ def mostrar_popup(parent=None, cfg_override: Optional[Dict[str, Any]] = None) ->
             cor_fundo_gif = _tk_cor_para_rgb(root, cor)
             grupos_gif = []
             falhou = False
+            # Monitores com a mesma resolução (comum em setups com telas
+            # iguais) reaproveitam o mesmo carregamento em vez de decodificar
+            # o GIF de novo por janela.
+            frames_por_resolucao: Dict[Tuple[int, int], Tuple[list, list]] = {}
             for janela, jw, jh in janelas_geo:
                 area_w = max(160, jw - (80 if fullscreen else 20))
                 area_h = max(120, jh - (120 if fullscreen else 20))
                 gif_label = _preparar_janela_gif(janela, fullscreen, cor, fechar_popup)
-                frames, duracoes = _carregar_frames_gif(
-                    gif_path,
-                    area_w,
-                    area_h,
-                    gif_fit_mode,
-                    gif_zoom_mult if fullscreen else 1.0,
-                    cor_fundo_gif,
-                )
+                chave_resolucao = (area_w, area_h)
+                if chave_resolucao not in frames_por_resolucao:
+                    frames_por_resolucao[chave_resolucao] = _carregar_frames_gif(
+                        gif_path,
+                        area_w,
+                        area_h,
+                        gif_fit_mode,
+                        gif_zoom_mult if fullscreen else 1.0,
+                        cor_fundo_gif,
+                    )
+                frames, duracoes = frames_por_resolucao[chave_resolucao]
                 if not frames:
                     falhou = True
                     break
