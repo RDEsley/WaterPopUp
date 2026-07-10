@@ -11,6 +11,7 @@
 [![Status](https://img.shields.io/badge/Status-Finalizado-25D366?style=for-the-badge)]()
 [![Releases](https://img.shields.io/badge/Download-Releases-0969da?style=for-the-badge&logo=github)](https://github.com/RDEsley/WaterPopUp/releases)
 [![Última Versão](https://img.shields.io/github/v/release/RDEsley/WaterPopUp?style=for-the-badge&label=%C3%9Altima%20vers%C3%A3o)](https://github.com/RDEsley/WaterPopUp/releases/latest)
+[![Plataforma](https://img.shields.io/badge/Plataforma-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)]()
 
 </div>
 
@@ -25,6 +26,7 @@
 - [Configurações](#configuracoes)
 - [Multi-monitor](#multimonitor)
 - [Estrutura do Projeto](#estrutura)
+- [Contribuindo](#contribuindo)
 - [Licença](#licenca)
 - [Desenvolvedor](#desenvolvedor)
 
@@ -33,9 +35,9 @@
 <a id="sobre"></a>
 ## 📌 Sobre o Projeto
 
-O **Water-Popup** é um app de notificações personalizadas. Apesar do nome, ele não é limitado a hidratação: você pode configurar mensagens, visual, GIFs, áudio e frequência para qualquer tipo de lembrete pessoal ou profissional.
+O **Water-Popup** é um utilitário de notificações personalizadas para Windows. Apesar do nome, ele não se limita a lembretes de hidratação: você define mensagem, visual, GIFs, áudio e frequência para qualquer tipo de lembrete pessoal ou profissional — desde "beba água" até "hora da pausa" ou "levante e alongue".
 
-> 🎯 **Destaque:** Totalmente compatível com empacotamento `.exe` para rodar direto no Windows. Ideal para iniciar junto com o PC.
+> 🎯 **Destaque:** empacotamento nativo em `.exe`, suporte real a múltiplos monitores e configuração 100% via interface gráfica. Ideal para deixar rodando junto com a inicialização do Windows.
 
 ### ⚡ Teste rápido (recomendado)
 
@@ -146,7 +148,7 @@ O `.exe` fica em `dist/waterpopup.exe`. Para recompilar do zero (limpa o cache d
 
 **Windows — “Permission denied” / `update_exe_pe_checksum`:** o `waterpopup.exe` não pode estar em uso. Feche o app (e atalhos em segundo plano) ou use **`scripts\build-exe.bat`** / **`scripts\build-exe.ps1`**, que encerram processos `waterpopup` e em seguida rodam o PyInstaller. Se a pasta estiver no OneDrive, aguarde a sincronização ou exclua `dist` da nuvem para reduzir bloqueios.
 
-### GitHub Releases (seguranca e verificacao)
+### GitHub Releases (segurança e verificação)
 
 Use o script pronto do projeto (pasta `scripts/`) para empacotar e gerar o hash da release:
 
@@ -288,6 +290,21 @@ WaterPopUp/
 
 ---
 
+<a id="contribuindo"></a>
+## 🤝 Contribuindo
+
+Contribuições são muito bem-vindas! Se você tem uma ideia, encontrou um bug ou quer melhorar algo:
+
+1. Faça um **fork** do repositório.
+2. Crie uma branch para sua alteração: `git checkout -b feature/minha-melhoria`.
+3. Commit suas mudanças: `git commit -m "feat: descreva sua melhoria"`.
+4. Envie para o seu fork: `git push origin feature/minha-melhoria`.
+5. Abra um **Pull Request** explicando o que foi feito.
+
+🐛 **Encontrou um bug ou tem uma sugestão?** Abra uma [issue](https://github.com/RDEsley/WaterPopUp/issues) descrevendo o problema ou a ideia com o máximo de detalhes possível.
+
+---
+
 <a id="licenca"></a>
 ## ⚖️ Licença
 
@@ -316,6 +333,8 @@ Este projeto está sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) par
 
 <div align="center">
 
-*⭐ Personalize suas notificações e deixe uma estrela no repositório! ⭐*
+*⭐ Se este projeto foi útil pra você, considere deixar uma estrela no repositório! ⭐*
+
+Feito com 💙 e bastante café por [Richard Esley](https://github.com/RDEsley)
 
 </div>
